@@ -1,13 +1,8 @@
-import streamlit as st
-from openai import OpenAI
-import os
-import json
 import decimal
+import json
 
-# Using Decimal for financial calculations to maintain precision
-# The values are based on the Standard Chartered Bank (Hong Kong) Limited Credit Card Key Facts Statement
-# Effective Date: 1 December 2024
-
+# Define the credit card fees and rates data
+# This dictionary holds all the structured information about fees and rates.
 credit_card_fees_and_rates = {
     "effective_date": "2024-12-01",
     "interest_and_charges": [
@@ -199,7 +194,7 @@ credit_card_fees_and_rates = {
             "card_type": "MANHATTAN 21 / Infinity Credit Card",
             "description": {
                 "principal_card": "HK$330",
-                "supplementary_card": "HK$160"
+                "supplement_card": "HK$160"
             }
         },
         {
@@ -412,83 +407,11 @@ credit_card_fees_and_rates = {
     ]
 }
 
-# Helper function to serialize Decimal objects to strings for JSON
+
 def decimal_serializer(obj):
+    """JSON serializer for objects not serializable by default."""
     if isinstance(obj, decimal.Decimal):
         return str(obj)
     # Let the default encoder handle other types
     return json.JSONEncoder().default(obj)
 
-# Convert the structured data to a JSON string for the system message
-# Using indent for readability within the prompt (optional)
-fees_data_json = json.dumps(credit_card_fees_and_rates, indent=2, default=decimal_serializer)
-
-# Define the system message content
-system_message_content = f"""You are a helpful AI assistant specializing in providing information about Standard Chartered Bank (Hong Kong) Limited Credit Card fees and rates.
-You MUST ONLY use the following provided information to answer questions about these specific fees and rates. Do not use any prior knowledge or external information.
-Provide concise and direct answers based *strictly* on the data provided.
-If a user asks about something not covered in this data, state clearly that you cannot provide information on that topic based on the provided data.
-
-Here is the relevant data in JSON format:
-```json
-{fees_data_json}
-"""
-
-st.set_page_config(page_title="Credit Card FAQ Chatbot", page_icon="💳")
-st.title("💳 Standard Chartered Credit Card FAQ")
-
-def clear_chat_history():
-    st.session_state.messages = []
-# Optional: Add an initial assistant message back after clearing
-    st.session_state.messages.append({"role": "assistant", "content": "Hello! I can help you with questions about Standard Chartered Credit Card fees and rates. What would you like to know?"})
-
-st.button('Clear Chat History', on_click=clear_chat_history)
-# openai_api_key = st.text_input("OpenAI API Key", type="password")
-openai_api_key = st.secrets["openai_api_key"]
-
-client = OpenAI(api_key=openai_api_key)
-
-# Create a session state variable to store the chat messages.
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-    # Optional: Add an initial assistant message on first load
-    # st.session_state.messages.append({"role": "assistant", "content": "Hello! I can help you with questions about Standard Chartered Credit Card fees and rates based on the provided information. What would you like to know?"})
-
-
-# Display the existing chat messages.
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# Create a chat input field.
-if prompt := st.chat_input("Ask about credit card fees and rates..."):
-
-    # Store and display the user prompt.
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    # Prepare the messages list for the API call (including the system message).
-    messages_for_api = [
-        {"role": "system", "content": system_message_content}
-    ]
-    messages_for_api.extend([
-        {"role": m["role"], "content": m["content"]}
-        for m in st.session_state.messages
-    ])
-
-    # Add a loading indicator while generating the response
-    with st.spinner("Getting information..."):
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo", # Or a more capable model if needed
-            messages=messages_for_api,
-            stream=True,
-        )
-
-        # Stream the response to the chat.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-
-    # Store the assistant's response in session state.
-    st.session_state.messages.append({"role": "assistant", "content": response})

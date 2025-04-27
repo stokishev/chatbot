@@ -1,74 +1,259 @@
+# main.py
 import streamlit as st
 from openai import OpenAI
-import json 
-import decimal 
+import json
+import decimal
+import os
+import shutil
+import logging # <-- Import logging module
 
-from config import credit_card_fees_and_rates 
-from tasks import generate_system_message
+# --- RAG Libraries ---
+from langchain_community.vectorstores import Chroma
+from langchain_openai import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.docstore.document import Document
+
+# --- Load Data from Config ---
+from config import full_knowledge_text # (Ensure other necessary imports from config are present if needed)
+
+# --- Logging Configuration ---
+# Configure logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+# INFO logs general events, DEBUG logs detailed info (like full context)
+log_level = logging.DEBUG
+log_format = '%(asctime)s - %(levelname)s - %(name)s - %(message)s'
+log_file = 'chatbot.log' # Optional: File to log to
+
+logging.basicConfig(level=log_level, format=log_format) # Basic config logs to stderr
+
+# Optional: Add a file handler to log to a file as well
+# file_handler = logging.FileHandler(log_file)
+# file_handler.setFormatter(logging.Formatter(log_format))
+# logging.getLogger().addHandler(file_handler) # Add handler to the root logger
+
+# Get a logger instance for this module
+logger = logging.getLogger(__name__)
+
+# --- Configuration ---
+openai_api_key = st.secrets.get("openai_api_key") # Use .get for safer access
+persist_directory = 'sc_hk_card_db'
+collection_name = "sc_hk_card_info"
+force_recreate_db = True
+
+# --- Helper function to initialize Vector Store ---
+@st.cache_resource(show_spinner="Initializing Knowledge Base...")
+def initialize_vector_store(text_data, _embedding_function, _persist_directory, _collection_name, _force_recreate=False):
+    """Initializes or loads the Chroma vector store."""
+    logger.info(f"Initializing/Loading vector store from: {_persist_directory}")
+    vectorstore = None
+    if _force_recreate and os.path.exists(_persist_directory):
+        logger.warning(f"Force recreating DB. Removing old directory: {_persist_directory}")
+        try:
+            shutil.rmtree(_persist_directory)
+        except OSError as e:
+            logger.error(f"Error removing directory {_persist_directory}: {e}")
+            st.error(f"Error removing old database directory. Please remove it manually: {_persist_directory}")
+            st.stop()
+
+
+    if os.path.exists(_persist_directory):
+        try:
+            logger.info(f"Attempting to load existing vector store.")
+            vectorstore = Chroma(
+                persist_directory=_persist_directory,
+                embedding_function=_embedding_function,
+                collection_name=_collection_name
+            )
+            count = vectorstore._collection.count() # Get count safely
+            if count == 0:
+                 logger.warning("Vector store exists but is empty. Re-initializing.")
+                 vectorstore = None
+                 if os.path.exists(_persist_directory): # Clean up empty directory
+                    try:
+                        shutil.rmtree(_persist_directory)
+                    except OSError as e:
+                        logger.error(f"Error removing empty directory {_persist_directory}: {e}")
+
+            else:
+                 logger.info(f"Successfully loaded vector store with {count} documents.")
+
+        except Exception as e:
+            logger.exception(f"Error loading existing vector store: {e}. Will attempt re-initialization.") # Log full traceback
+            vectorstore = None
+            if os.path.exists(_persist_directory):
+                try:
+                    shutil.rmtree(_persist_directory)
+                except OSError as e:
+                     logger.error(f"Error removing potentially corrupted directory {_persist_directory}: {e}")
+
+
+    if vectorstore is None:
+        logger.info(f"Creating new vector store in: {_persist_directory}")
+        docs = [Document(page_content=text_data)]
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=500,  # Smaller chunk size
+            chunk_overlap=100, # Maybe increase overlap slightly
+            length_function=len,
+        )
+        try:
+            chunks = text_splitter.split_documents(docs)
+            logger.info(f"Split data into {len(chunks)} chunks.")
+
+            if not chunks:
+                 logger.error("No chunks were created from the source data.")
+                 st.error("Error: No text chunks could be created from the source data.")
+                 st.stop()
+                 return None
+
+            # Create and persist the vector store
+            vectorstore = Chroma.from_documents(
+                documents=chunks,
+                embedding=_embedding_function,
+                persist_directory=_persist_directory,
+                collection_name=_collection_name
+            )
+            logger.info(f"Created and persisted new vector store with {vectorstore._collection.count()} documents.")
+
+        except Exception as e:
+            logger.exception(f"Fatal error during vector store creation: {e}") # Log full traceback
+            st.error(f"Fatal error creating knowledge base: {e}")
+            st.stop()
+            return None
+
+    return vectorstore
 
 # --- Streamlit App UI ---
-
 st.set_page_config(page_title="Credit Card FAQ Chatbot", page_icon="💳")
-st.title("💳 Standard Chartered Credit Card FAQ")
+st.title("💳 Standard Chartered HK - Credit Card FAQ")
 
-# Add a button to clear chat history
 def clear_chat_history():
-    st.session_state.messages = []
+    logger.info("Clearing chat history.")
+    st.session_state.messages = [{"role": "assistant", "content": "Hi! Ask me about Standard Chartered HK Credit Card features, fees, offers, or services."}]
+    # No need for st.success here, button click is implicit feedback
 
 st.button('Clear Chat History', on_click=clear_chat_history)
 
 # --- Chatbot Logic ---
-
-openai_api_key = st.secrets["openai_api_key"]
-
 if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+    st.info("Please add your OpenAI API key to Streamlit secrets (key: openai_api_key) to continue.", icon="🗝️")
+    logger.warning("OpenAI API key not found in secrets.")
+    st.stop()
 else:
+    # Initialize OpenAI client and embeddings
+    try:
+        client = OpenAI(api_key=openai_api_key)
+        embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key, model="text-embedding-3-small")
+        logger.info("OpenAI client and embeddings initialized successfully.")
+    except Exception as e:
+        logger.exception("Failed to initialize OpenAI Client or Embeddings.") # Log full traceback
+        st.error(f"Failed to initialize OpenAI services: {e}")
+        st.stop()
 
-    client = OpenAI(api_key=openai_api_key)
+    # --- Load or Initialize Vector Store ---
+    vectorstore = initialize_vector_store(
+        full_knowledge_text,
+        embeddings, # Note: passed without underscore here
+        persist_directory,
+        collection_name,
+        force_recreate_db
+    )
 
-    # Create a session state variable to store the chat messages.
+    if vectorstore is None:
+        logger.error("Vector store initialization failed. Stopping execution.")
+        # Error already shown in initialize_vector_store
+        st.stop()
+
+    # --- Initialize chat history ---
     if "messages" not in st.session_state:
-        st.session_state.messages = []
+        logger.info("Initializing chat history session state.")
+        st.session_state.messages = [{"role": "assistant", "content": "Hi! Ask me about Standard Chartered HK Credit Card features, fees, offers, or services."}]
 
-    # Display the existing chat messages.
+    # Display chat messages from history
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Create a chat input field.
-    if prompt := st.chat_input("Ask about credit card fees and rates..."):
-
-        # Store and display the user prompt.
+    # --- Handle user input ---
+    if prompt := st.chat_input("Ask about cards, fees, offers or services..."):
+        logger.info(f"User input received: '{prompt}'")
+        # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
+        # Display user message
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Generate the system message using the function from tasks.py
-        system_message_content = generate_system_message()
+        # Add a thinking indicator
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                # --- RAG Step: Retrieve ---
+                context = "Error during context retrieval." # Default error context
+                retrieved_docs_content = [] # To store content for logging
+                try:
+                    logger.info(f"Retrieving relevant documents for query: '{prompt}'")
+                    retriever = vectorstore.as_retriever(
+                        search_type="similarity",
+                        search_kwargs={"k": 10} 
+                    )
+                    # retriever = vectorstore.as_retriever(
+                    # search_type="mmr",
+                    # search_kwargs={"k": 5, "fetch_k": 20} # Fetch 20 initially, pick top 5 diverse ones
+                    # )
+                    retrieved_docs = retriever.invoke(prompt)
+                    retrieved_docs_content = [doc.page_content for doc in retrieved_docs]
+                    context = "\n\n---\n\n".join(retrieved_docs_content)
+                    logger.info(f"Retrieved {len(retrieved_docs)} documents.")
+                    # Use DEBUG level for full context as it can be very long
+                    logger.debug(f"Retrieved context:\n{context}")
 
-        # Prepare the messages list for the API call (including the system message).
-        messages_for_api = [
-            {"role": "system", "content": system_message_content}
-        ]
-        messages_for_api.extend([
-            {"role": m["role"], "content": m["content"]}
-            for m in st.session_state.messages
-        ])
+                except Exception as e:
+                    logger.exception("Error retrieving documents from vector store.") # Log full traceback
+                    st.error(f"Error retrieving information from knowledge base: {e}")
+                    # Keep default error context
 
-        # Add a loading indicator while generating the response
-        with st.spinner("Getting information..."):
-            # Generate a response using the OpenAI API.
-            stream = client.chat.completions.create(
-                model="gpt-3.5-turbo", 
-                messages=messages_for_api,
-                stream=True,
-            )
+                # --- RAG Step: Augment Prompt ---
+                system_message_content = """You are an AI assistant for Standard Chartered HK credit cards.
+                - Answer the user's question based *ONLY* on the provided context below.
+                - Be concise and directly address the question.
+                - If the context doesn't contain the answer, state clearly that the information is not available in the provided documents.
+                - Do not make up information or use external knowledge.
+                - Quote specific fees, rates, or card names from the context when relevant.
+                """
 
-            # Stream the response to the chat.
-            with st.chat_message("assistant"):
-                response = st.write_stream(stream)
+                messages_for_api = [
+                    {"role": "system", "content": system_message_content},
+                    {"role": "user", "content": f"Based on the following information:\n\nContext:\n---\n{context}\n---\n\nQuestion: {prompt}"}
+                ]
+                # Use DEBUG level for full prompt logging as it includes context
+                logger.debug(f"Messages prepared for OpenAI API: {messages_for_api}")
+                logger.info("Sending request to OpenAI API.")
 
-        # Store the assistant's response in session state.
-        st.session_state.messages.append({"role": "assistant", "content": response})
 
+                # --- RAG Step: Generate ---
+                response = "Sorry, I encountered an error processing your request." # Default error response
+                try:
+                    stream = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=messages_for_api,
+                        stream=True,
+                        temperature=0.2,
+                        max_tokens=500
+                    )
+                    # Stream response to the chat
+                    response = st.write_stream(stream)
+                    logger.info("Successfully received stream response from OpenAI.")
+                    # Log full response at DEBUG level
+                    logger.debug(f"LLM Response: {response}")
+
+
+                except Exception as e:
+                    logger.exception("Error calling OpenAI API.") # Log full traceback
+                    st.error(f"An error occurred while communicating with the AI: {e}")
+                    # Keep default error response
+
+            # Add assistant response (or error message) to chat history
+            st.session_state.messages.append({"role": "assistant", "content": response})
+            # Ensure the final response (even if default error) is logged if not streamed
+            if 'stream' not in locals(): # If API call failed before stream started
+                 logger.warning(f"Assistant final response (error default): {response}")
+
+
+# --- End of App Logic ---

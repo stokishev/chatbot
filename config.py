@@ -1,431 +1,413 @@
 import decimal
 import json
 
-# Define the credit card fees and rates data
-# This dictionary holds all the structured information about fees and rates.
-credit_card_fees_and_rates_structured = {
-    "effective_date": "2024-12-01",
-    "interest_and_charges": [
-        {
-            "item": 1,
-            "type": "Annualised Percentage Rate (APR) for Retail Purchase / Finance charge for purchase",
-            "card_type": "All Credit Cards",
-            "description": {
-                "apr": decimal.Decimal("35.70"),
-                "daily_rate": decimal.Decimal("0.0914"),
-                "notes": "When you open your account and it will be reviewed from time to time. Interest free if balance paid in full by due date. Otherwise, interest charged daily on unpaid balance from previous statement date and on new transactions from transaction date."
-            }
-        },
-        {
-            "item": 2,
-            "type": "APR for Cash Advance / Finance charge for Cash Advance",
-            "card_type": "All Credit Cards (not applicable to Smart Credit Card)",
-            "description": {
-                "apr": decimal.Decimal("35.93"),
-                "daily_rate": decimal.Decimal("0.0847"),
-                "notes": "When you open your account and it will be reviewed from time to time. Interest charged daily from transaction date until payment in full."
-            }
-        },
-        {
-            "item": 2,
-            "type": "APR for Cash Advance / Finance charge for Cash Advance",
-            "card_type": "Smart Credit Card",
-            "description": {
-                "apr": decimal.Decimal("34.11"),
-                "daily_rate": decimal.Decimal("0.0847"),
-                "notes": "When you open your account and it will be reviewed from time to time. Interest charged daily from transaction date until payment in full."
-            }
-        },
-        {
-            "item": 3,
-            "type": "Delinquent APR / Default rate",
-            "card_type": "All Credit Cards",
-            "description": "Waived"
-        },
-        {
-            "item": 4,
-            "type": "Interest Free Period",
-            "card_type": "Standard Chartered Credit Card",
-            "description": "Up to 56 days"
-        },
-        {
-            "item": 4,
-            "type": "Interest Free Period",
-            "card_type": "MANHATTAN Credit Card",
-            "description": "Up to 59 days"
-        },
-        {
-            "item": 5,
-            "type": "Minimum Payment / Minimum Payment Due",
-            "card_type": "All Credit Cards",
-            "description": "All interest, fees, charges (including Annual Fee(s)), the total of the overlimit amount and/or the overdue amount (where applicable) that may be charged, plus 1% of outstanding principal or HK$/CNY220, whichever is higher."
-        }
-    ],
-    "fees": [
-        {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Classic Credit Card / executive Credit Card / Shop’n Gain Credit Card",
-            "description": {
-                "principal_card": "HK$250",
-                "supplementary_card": "HK$125"
-            }
-        },
-        {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Gold Credit Card",
-            "description": {
-                "principal_card": "HK$550",
-                "supplementary_card": "HK$275"
-            }
-        },
-        {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Titanium Credit Card",
-            "description": {
-                "principal_card": "HK$600",
-                "supplementary_card": "HK$300"
-            }
-        },
-        {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Platinum Credit Card / executive platinum Credit Card / Preferred Banking Credit Card / UnionPay Dual Currency Platinum Credit Card / Shop’n Gain Platinum Credit Card",
-            "description": {
-                "principal_card": "HK$1,800",
-                "supplementary_card": "Waived"
-            }
-        },
-        {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Corporate Credit Card / Visa Signature Business Card",
-            "description": {
-                "principal_card": "HK$1,800",
-                "supplementary_card": "N/A"
-            }
-        },
-         {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Priority Banking Credit Card",
-            "description": {
-                "principal_card": "HK$2,400",
-                "supplementary_card": "Waived" # Note 6: Free for up to 3, subsequent HK$1,200
-            }
-        },
-        {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Visa Infinite Card",
-            "description": {
-                "principal_card": "HK$6,000",
-                "supplementary_card": "Waived"
-            }
-        },
-        {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Smart Credit Card",
-            "description": {
-                "principal_card": "Waived",
-                "supplementary_card": "Waived"
-            }
-        },
-         {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Cathay Mastercard",
-            "description": {
-                "principal_card": "HK$2,000",
-                "supplementary_card": "Waived"
-            }
-        },
-         {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Cathay Mastercard – Priority Banking",
-            "description": {
-                "principal_card": "HK$4,000",
-                "supplementary_card": "Waived"
-            }
-        },
-         {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Cathay Mastercard – Priority Private",
-            "description": {
-                "principal_card": "HK$8,000",
-                "supplementary_card": "Waived"
-            }
-        },
-         {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "Simply Cash Visa Card",
-            "description": {
-                "principal_card": "HK$2,000",
-                "supplementary_card": "Waived"
-            }
-        },
-         {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "MANHATTAN Platinum Credit Card",
-            "description": {
-                "principal_card": "HK$1,800",
-                "supplementary_card": "HK$900"
-            }
-        },
-         {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "MANHATTAN Titanium / Gold Credit Card",
-            "description": {
-                "principal_card": "HK$600",
-                "supplementary_card": "HK$300"
-            }
-        },
-         {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "MANHATTAN 21 / Infinity Credit Card",
-            "description": {
-                "principal_card": "HK$330",
-                "supplement_card": "HK$160"
-            }
-        },
-        {
-            "item": 6,
-            "type": "Annual Membership Fee / Annual Fee / Annual Fee Anniversary (charge per card on annual basis)",
-            "card_type": "MANHATTAN Visa",
-            "description": {
-                "principal_card": "HK$216",
-                "supplementary_card": "HK$108"
-            }
-        },
-        {
-            "item": 7,
-            "type": "Reduced Annual Fee on any subsequent Standard Chartered Credit Card sharing a combined credit limit (Principal Card only)",
-            "card_type": "Classic Credit Card",
-            "description": "HK$125"
-        },
-        {
-            "item": 7,
-            "type": "Reduced Annual Fee on any subsequent Standard Chartered Credit Card sharing a combined credit limit (Principal Card only)",
-            "card_type": "Gold Credit Card (not applicable to Platinum / Co-branded)",
-            "description": "HK$275"
-        },
-        {
-            "item": 8,
-            "type": "Cash Advance / Cash Advance Fee",
-            "card_type": "Corporate Credit Card",
-            "description": "3% of the cash advance amount per transaction (minimum HK$55), over the counter or via Jetco ATM, Visa ATM Network."
-        },
-        {
-            "item": 8,
-            "type": "Cash Advance / Cash Advance Fee",
-            "card_type": "UnionPay Dual Currency Platinum Credit Card",
-            "description": "3.5% of the cash advance amount per transaction (minimum HK$100), over the counter or via Jetco ATM, UnionPay International ATM Network."
-        },
-        {
-            "item": 8,
-            "type": "Cash Advance / Cash Advance Fee",
-            "card_type": "Smart Credit Card",
-            "description": "Waived, over the counter or via Jetco ATM/ Visa International ATM Network."
-        },
-         {
-            "item": 8,
-            "type": "Cash Advance / Cash Advance Fee",
-            "card_type": "Other Credit Cards (not applicable to Smart Credit Card)",
-            "description": "3.5% of the cash advance amount per transaction (minimum HK$100), over the counter or via Jetco ATM, Visa / Mastercard International ATM Network (as available to the relevant Credit Card type(s))."
-        },
-        {
-            "item": 9,
-            "type": "Fees relating to Foreign Currency Transactions / Foreign Currency (Currencies other than Hong Kong Dollars) Transactions incurred in or outside of Hong Kong",
-            "card_type": "UnionPay Dual Currency Platinum Credit Card",
-            "description": "All settlements in HKD/CNY. Transactions in foreign currency (incl. CNY in China) converted at wholesale market rate + 0.6% UnionPay International reimbursement charge + 0.4% Bank charge (1% total). Exchange rate may differ from transaction date. Except for transactions in Foreign Currency (Currencies other than Hong Kong Dollars) incurred in Hong Kong."
-        },
-        {
-            "item": 9,
-            "type": "Fees relating to Foreign Currency Transactions / Foreign Currency (Currencies other than Hong Kong Dollars) Transactions incurred in or outside of Hong Kong",
-            "card_type": "Smart Credit Card",
-            "description": "Waived. All settlements in HKD. Transactions in foreign currency converted at Visa International wholesale market rate. Exchange rate may differ from transaction date."
-        },
-        {
-            "item": 9,
-            "type": "Fees relating to Foreign Currency Transactions / Foreign Currency (Currencies other than Hong Kong Dollars) Transactions incurred in or outside of Hong Kong",
-            "card_type": "Visa (not applicable to Smart Credit Card) / Mastercard",
-            "description": "All settlements in HKD. Transactions in foreign currency converted at Visa/Mastercard International wholesale market rate + 1% Visa/Mastercard International reimbursement charge + 0.95% Bank charge (1.95% total). Exchange rate may differ from transaction date. Except for transactions in Foreign Currency (Currencies other than Hong Kong Dollars) incurred in Hong Kong."
-        },
-        {
-            "item": 10,
-            "type": "Fees relating to Settling Foreign Currency (Currencies other than Hong Kong Dollars) Transaction in Hong Kong Dollars / Transactions in Hong Kong Dollars Incurred Outside of Hong Kong",
-            "card_type": "UnionPay Dual Currency Platinum Credit Card",
-            "description": "Not Applicable"
-        },
-        {
-            "item": 10,
-            "type": "Fees relating to Settling Foreign Currency (Currencies other than Hong Kong Dollars) Transaction in Hong Kong Dollars / Transactions in Hong Kong Dollars Incurred Outside of Hong Kong",
-            "card_type": "Smart Credit Card",
-            "description": "Waived. Option to settle in HKD overseas may be offered by merchants, ask merchants for rates and handling fees as cost may be higher than foreign currency transaction handling fee. Refer to item 9 if settling in foreign currency."
-        },
-        {
-            "item": 10,
-            "type": "Fees relating to Settling Foreign Currency (Currencies other than Hong Kong Dollars) Transaction in Hong Kong Dollars / Transactions in Hong Kong Dollars Incurred Outside of Hong Kong",
-            "card_type": "Visa (not applicable to Smart Credit Card) / Mastercard",
-            "description": "Visa/Mastercard International imposes 1% reimbursement charge on the Bank for transactions in HKD incurred outside HK or with non-HK registered merchants (e.g. internet), charged by the Bank to customer. Fee applicable to transactions initiated by customer and/or merchant depending on merchant’s setting. Option to settle foreign currency transactions in HKD overseas may be offered by merchants, ask merchants for rates and handling fees as cost may be higher than foreign currency transaction handling fee. Refer to item 9 if choosing to settle foreign currency transactions incurred in or outside of Hong Kong."
-        },
-        {
-            "item": 11,
-            "type": "Transactions in CNY Currency",
-            "card_type": "UnionPay Dual Currency Platinum Credit Card",
-            "description": "All transactions in CNY incurred outside of Hong Kong will not be converted into Hong Kong Dollars. China transactions will be directly posted in terms of CNY currency on CNY credit card account."
-        },
-        {
-            "item": 12,
-            "type": "Late Payment Fee / Late Charge (Fail to pay Minimum Payment Due by Payment Due date)",
-            "card_type": "Corporate Credit Card",
-            "description": "EITHER 5% of the Minimum Payment Due (subject to a minimum cap of HK$220 and a maximum cap of HK$350) OR the Minimum Payment Due, whichever is lower."
-        },
-        {
-            "item": 12,
-            "type": "Late Payment Fee / Late Charge (Fail to pay Minimum Payment Due by Payment Due date)",
-            "card_type": "Other Credit Cards",
-            "description": "EITHER 5% of the Outstanding Balance (subject to a minimum cap of HK$/CNY220 and a maximum cap of HK$/CNY350) OR the Minimum Payment Due, whichever is lower."
-        },
-        {
-            "item": 13,
-            "type": "Late Fee (Fail to pay Minimum Payment Due for 3 Consecutive months or more)",
-            "card_type": "All Credit Cards",
-            "description": "Waived"
-        },
-        {
-            "item": 14,
-            "type": "Over-the-limit Fee / Overlimit Charge",
-            "card_type": "All Credit Cards (not applicable to Visa Infinite Card and Corporate Credit card)",
-            "description": "HK$180 per statement cycle"
-        },
-         {
-            "item": 15,
-            "type": "Returned Payment Fee/ Returned Item Fee",
-            "card_type": "All Credit Cards",
-            "description": "HK$/CNY120 per item"
-        },
-        {
-            "item": 16,
-            "type": "360° Rewards Points mileage redemption handling fee",
-            "card_type": "All Credit Cards",
-            "description": "HK$300 per each redemption"
-        },
-         {
-            "item": 17,
-            "type": "Card Replacement Fee",
-            "card_type": "All Credit Cards",
-            "description": "HK$100 per credit card account"
-        },
-         {
-            "item": 18,
-            "type": "Charge for Foreign Currency Cheque Repayment",
-            "card_type": "Standard Chartered Credit Card",
-            "description": "HK$/CNY100 per cheque"
-        },
-        {
-            "item": 18,
-            "type": "Charge for Foreign Currency Cheque Repayment",
-            "card_type": "MANHATTAN Credit Card",
-            "description": "Minimum HK$15, maximum HK$100 per cheque"
-        },
-        {
-            "item": 19,
-            "type": "Sales Draft Retrieval Fee (Photocopy)",
-            "card_type": "Standard Chartered Credit Card",
-            "description": "HK$40 per copy"
-        },
-        {
-            "item": 19,
-            "type": "Sales Draft Retrieval Fee (Photocopy)",
-            "card_type": "MANHATTAN Credit Card",
-            "description": "HK$50 per copy"
-        },
-         {
-            "item": 20,
-            "type": "Sales Draft Retrieval Fee (Original copy)",
-            "card_type": "All Credit Cards",
-            "description": "HK$70 per copy"
-        },
-         {
-            "item": 21,
-            "type": "Statement Retrieval Fee",
-            "card_type": "Corporate Credit Card",
-            "description": "HK$30 per statement issued within the latest 2 months (photocopy), HK$50 per statement issued beyond the latest 2 months (photocopy)"
-        },
-        {
-            "item": 21,
-            "type": "Statement Retrieval Fee",
-            "card_type": "Other Credit Cards",
-            "description": "HK$50 per copy*. *Waiver for eStatement registered customers (up to 6 copies per request for past 7 years) except for Standard Chartered SHOP’n GAIN/SHOP’n GAIN Platinum Credit Card, and designated Mastercard (card number starting with 5488)."
-        },
-        {
-            "item": 22,
-            "type": "Cash Withdrawal Fee (By cheque/cashier order)",
-            "card_type": "Standard Chartered Credit Card",
-            "description": "HK$/CNY75 per cheque"
-        },
-        {
-            "item": 22,
-            "type": "Cash Withdrawal Fee (By cheque/cashier order)",
-            "card_type": "MANHATTAN Credit Card",
-            "description": "Free if transfer to Standard Chartered account, HK$75 per cheque"
-        },
-        {
-            "item": 23,
-            "type": "Over-the-Counter Payment Handling Fee",
-            "card_type": "All Credit Cards (not applicable to Priority Banking Credit Card and Visa Infinite Card)",
-            "description": "HK$30 per transaction"
-        },
-         {
-            "item": 24,
-            "type": "Limit on Cash Advance",
-            "card_type": "All Credit Cards",
-            "description": "Your Limit on Cash Advance will be reviewed from time to time by the Bank. Your latest Limit on Cash Advance at any relevant time can be ascertained by calling 24-hour Customer Service Hotline."
-        },
-        {
-            "item": 25,
-            "type": "Over-limit electronic fund transfer handling fee",
-            "card_type": "All Credit Cards",
-            "description": "A 3.5% handling fee will apply to the transferred amount beyond HK$25,000 if total accumulated money transfers using electronic banking services, P2P payment services or mobile device/app/electronic funds transfer platform from Standard Chartered/MANHATTAN Credit Card(s) exceed HK$25,000 per Cardholder in a calendar month (based on transaction date). Charges debited to card with highest transferred amount. Specific rules apply for month-end transactions. Customer acknowledges fee in Online Banking/mobile app."
-        },
-        {
-            "item": 26,
-            "type": "Paper Statement Fees",
-            "card_type": "All Credit Cards except Standard Chartered SHOP’n GAIN Platinum Credit Card, Standard Chartered SHOP’n GAIN Credit Card, Standard Chartered Corporate VISA Card, Standard Chartered Visa Signature Business Card and designated Mastercard (card number starting with 5488)",
-            "description": "HK$10 per month, applicable to customers who receive any paper statement(s) (Consolidated Statement, Credit Card Statement, Current/Savings account Statement(s), Standard Chartered Revolving Cash Card Statement(s) AND MANHATTAN Revolving Personal Loan Statement(s)). Fee waived for customers aged below 18 or 65 and above, customers who hold Click-a-Count, and recipients of government disability allowances/allowance for elderlies or Comprehensive Social Security Assistance."
-        }
-    ]
-}
 
 
-# Function to serialize Decimal objects for JSON
-def decimal_serializer(obj):
-    """JSON serializer for objects not serializable by default."""
-    if isinstance(obj, decimal.Decimal):
-        return str(obj) # Convert Decimal to string
-    # More robust handling for un-serializable types if needed
-    try:
-        return json.JSONEncoder().default(obj)
-    except TypeError:
-        return str(obj) # Fallback to string representation
+# # Function to serialize Decimal objects for JSON
+# def decimal_serializer(obj):
+#     """JSON serializer for objects not serializable by default."""
+#     if isinstance(obj, decimal.Decimal):
+#         return str(obj) # Convert Decimal to string
+#     # More robust handling for un-serializable types if needed
+#     try:
+#         return json.JSONEncoder().default(obj)
+#     except TypeError:
+#         return str(obj) # Fallback to string representation
     
 # --- Convert structured data to a plain text format (JSON string) for RAG ---
 # Using json.dumps for a structured text representation
-fees_data_text = "Credit Card Fees and Rates Information:\n" + json.dumps(
-    credit_card_fees_and_rates_structured,
-    indent=2,
-    default=decimal_serializer # Use the custom serializer
-)
+fees_data_text = """
+Standard Chartered Bank (Hong Kong) Limited Credit Card* Key Facts Statement
+For Standard Chartered and MANHATTAN Cardholders
+Effective Date: 1 December 2024
+Interest and Charges
+Item Type of Charges Card Type Description
+1 Annualised
+Percentage Rate
+(APR) for Retail
+Purchase / Finance
+charge for
+purchase8
+All Credit Cards 35.70%1
+ (0.0914%9
+ per day) when you open your account and it will
+be reviewed from time to time.
+We will not charge you interest if you pay your balance in full by the due
+date each month. Otherwise, interest will be charged3
+ on (i) the unpaid
+balance from the date of the previous statement on a daily basis until
+payment in full and (ii) the amount of each new transaction (entered into
+since the previous statement date) from the date of that new transaction
+on a daily basis until payment in full.
+2 APR for Cash
+Advance / Finance
+charge for Cash
+Advance2,8
+All Credit Cards
+(not applicable to
+Smart Credit Card)
+35.93%1
+ (0.0847%9
+ per day) when you open your account and it will
+be reviewed from time to time. Interest will be charged3
+ on the amount of
+cash advance from the date of the transaction on a daily basis until
+payment in full.
+Smart Credit Card 34.11%1
+ (0.0847%9
+ per day) when you open your account and it will
+be reviewed from time to time. Interest will be charged3
+ on the amount of
+cash advance from the date of the transaction on a daily basis until
+payment in full.
+3 Delinquent APR /
+Default rate8
+All Credit Cards Waived
+4 Interest Free Period Standard Chartered
+Credit Card
+Up to 56 days
+MANHATTAN Credit Card Up to 59 days
+5 Minimum Payment /
+Minimum Payment
+Due 8 (if applicable)
+All Credit Cards All interest, fees, charges (including Annual Fee(s)), the total of the overlimit amount and/or the overdue amount (where applicable) that may be
+charged, plus 1% of outstanding principal or HK$/CNY220,
+whichever is higher.
+
+Fees
+Item Type of Fees Card Type
+Description
+Principal Card Supplementary Card4
+6 Annual
+Membership Fee /
+Annual Fee /
+Annual Fee
+Anniversary
+(charge per card on
+annual basis)10
+Classic Credit Card / executive
+Credit Card / Shop’n Gain Credit
+Card
+HK$250 HK$125
+Gold Credit Card HK$550 HK$275
+Titanium Credit Card HK$600 HK$300
+Platinum Credit Card /
+executive platinum Credit Card /
+Preferred Banking Credit Card /
+UnionPay Dual Currency
+Platinum Credit Card /
+Shop’n Gain Platinum Credit Card
+HK$1,800 Waived5
+Corporate Credit Card /
+Visa Signature Business Card HK$1,800 N/A
+Priority Banking Credit Card HK$2,400 Waived6
+Visa Infinite Card HK$6,000 Waived
+Smart Credit Card Waived Waived
+Cathay Mastercard HK$2,000 Waived
+Cathay Mastercard –
+Priority Banking HK$4,000 Waived
+Cathay Mastercard –
+Priority Private HK$8,000 Waived
+Simply Cash Visa Card HK$2,000 Waived
+MANHATTAN Platinum Credit Card HK$1,800 HK$900
+MANHATTAN Titanium /
+Gold Credit Card
+HK$600 HK$300
+MANHATTAN 21 / Infinity Credit Card HK$330 HK$160
+MANHATTAN Visa HK$216 HK$108
+7 Reduced Annual Fee
+on any subsequent
+Standard Chartered
+Credit Card sharing
+a combined credit
+limit (Principal Card
+only)
+Classic Credit Card HK$125 N/A
+Gold Credit Card (not applicable
+to Platinum / Co-branded) HK$275 N/A
+8 Cash Advance /
+Cash Advance Fee2,8
+Corporate Credit Card 3% of the cash advance amount per transaction (minimum
+HK$55), over the counter or via Jetco ATM, Visa ATM Network.
+UnionPay Dual Currency Platinum
+Credit Card
+3.5% of the cash advance amount per transaction (minimum
+HK$100), over the counter7
+ or via Jetco ATM, UnionPay
+International ATM Network.
+
+Smart Credit Card Cash Advance Fee Waived, over the counter or via Jetco ATM/
+Visa International ATM Network.
+Other Credit Cards
+(not applicable to Smart Credit
+Card)
+3.5% of the cash advance amount per transaction (minimum
+HK$100), over the counter or via Jetco ATM, Visa / Mastercard
+International ATM Network. (as available to the relevant Credit
+Card type(s)).
+9 Fees relating to
+Foreign Currency
+Transactions /
+Foreign Currency
+(Currencies other
+than Hong Kong
+Dollars) Transactions
+incurred in or
+outside of
+Hong Kong
+UnionPay Dual Currency Platinum
+Credit Card
+All settlements will be made in Hong Kong Dollars/CNY currency.
+All transactions effected in foreign currency (including CNY
+currency incurred in China) will be converted from the transaction
+currency into Hong Kong Dollars/CNY currency at a wholesale
+market rate selected by UnionPay International from within a
+range of wholesale market rates or the government-mandated
+rate in effect on the date when UnionPay International processes
+the transaction, and a 0.6% reimbursement charge+ will be
+imposed by UnionPay International plus 0.4% imposed by the
+Bank (1% in total). Such exchange rate may differ from the rate
+on the transaction date due to market fluctuation.
++ Except for transactions in Foreign Currency (Currencies other
+than Hong Kong Dollars) incurred in Hong Kong
+Smart Credit Card Waived.
+All settlements will be made in Hong Kong Dollars. All transactions
+effected in foreign currency will be converted from the transaction
+currency into Hong Kong Dollars at a wholesale market rate
+selected by Visa International from within a range of wholesale
+market rates or the government-mandated rate in effect on the
+date when Visa International process the transaction, such
+exchange rate may differ from the rate on the transaction date
+due to market fluctuation.
+Visa (not applicable to
+Smart Credit Card) / Mastercard
+All settlements will be made in Hong Kong Dollars. All transactions
+effected in foreign currency will be converted from the transaction
+currency into Hong Kong Dollars at a wholesale market rate
+selected by Visa/Mastercard International from within a range of
+wholesale market rates or the government-mandated rate in
+effect on the date when Visa/Mastercard International process
+the transaction, and a 1% reimbursement charge+ will be imposed
+by Visa/Mastercard International plus 0.95% imposed by the
+Bank (1.95% in total). Such exchange rate may differ from the
+rate on the transaction date due to market fluctuation.
++ Except for transactions in Foreign Currency (Currencies other
+than Hong Kong Dollars) incurred in Hong Kong.
+10 Fees relating to
+Settling Foreign
+Currency (Currencies
+other than
+Hong Kong Dollars)
+Transaction in
+Hong Kong Dollars /
+Transactions in
+Hong Kong Dollars
+Incurred Outside of
+Hong Kong
+UnionPay Dual Currency Platinum
+Credit Card
+Not Applicable
+
+Smart Credit Card Waived.
+You may sometimes be offered the option to settle foreign
+currency transactions in Hong Kong Dollars at the point of sale
+overseas. Such option is a direct arrangement offered by the
+overseas merchants and not the card issuer. In such cases, you are
+reminded to ask the merchants for the foreign currency exchange
+rates to be applied before the transactions are entered into.
+If you choose to settle foreign currency transactions incurred in or
+outside of Hong Kong, please refer to item 9 for the charges.
+Visa (not applicable to
+Smart Credit Card) / Mastercard
+Visa/Mastercard International will impose a reimbursement charge of
+1% on the Bank for transactions in Hong Kong Dollars incurred outside
+of Hong Kong or with any merchants not registered in Hong Kong (e.g.
+internet transaction), the same will be charged by the Bank on such
+transactions on behalf of Visa/Mastercard International.
+The fee is applicable to transactions initiated by you and/or the
+merchant depending on the merchant’s setting.
+Visa / Mastercard You may sometimes be offered the option to settle foreign
+currency transactions in Hong Kong Dollars at the point of sale
+overseas. Such option is a direct arrangement offered by the
+overseas merchants and not the card issuer. In such cases, you are
+reminded to ask the merchants for the foreign currency exchange
+rates and the percentage of handling fees to be applied before
+the transactions are entered into since settling foreign currency
+transactions in Hong Kong Dollars may involve a cost higher than
+the foreign currency transaction handling fee.
+If you choose to settle foreign currency transactions incurred in or
+outside of Hong Kong, please refer to item 9 for the charges.
+11 Transactions in
+CNY Currency
+UnionPay Dual Currency Platinum
+Credit Card
+All transactions in CNY currency incurred outside of Hong Kong
+will not be converted into Hong Kong Dollars. China transactions will
+be directly posted in terms of CNY currency on CNY credit card account.
+12 Late Payment Fee /
+Late Charge8 (Fail
+to pay Minimum
+Payment Due by
+Payment Due date)
+Corporate Credit Card EITHER 5% of the Minimum Payment Due (subject to a minimum
+cap of HK$220 and a maximum cap of HK$350) OR the
+Minimum Payment Due, whichever is lower.
+Other Credit Cards EITHER 5% of the Outstanding Balance (subject to a minimum
+cap of HK$/CNY220 and a maximum cap of HK$/
+CNY350) OR the Minimum Payment Due, whichever is lower.
+13 Late Fee8 (Fail to pay
+Minimum Payment
+Due for 3 Consecutive
+months or more)
+All Credit Cards Waived
+14 Over-the-limit Fee /
+Overlimit Charge
+All Credit Cards (not applicable to
+Visa Infinite Card and Corporate
+Credit card)
+HK$180 per statement cycle
+15 Returned Payment Fee/
+Returned Item Fee8
+All Credit Cards HK$/CNY120 per item
+16 360° Rewards Points
+mileage redemption
+handling fee
+All Credit Cards HK$300 per each redemption
+17 Card Replacement Fee All Credit Cards HK$100 per credit card account
+18 Charge for Foreign
+Currency Cheque
+Repayment 8
+Standard Chartered Credit Card HK$/CNY100 per cheque
+MANHATTAN Credit Card Minimum HK$15, maximum HK$100 per cheque
+19 Sales Draft
+Retrieval Fee 8
+(Photocopy)
+Standard Chartered Credit Card HK$40 per copy
+MANHATTAN Credit Card HK$50 per copy
+
+20 Sales Draft Retrieval
+Fee 8 (Original copy)
+All Credit Cards HK$70 per copy
+21 Statement Retrieval
+Fee
+Corporate Credit Card HK$30 per statement issued within the latest 2 months (photocopy)
+HK$50 per statement issued beyond the latest 2 months (photocopy)
+Other Credit Cards HK$50 per copy*
+* To encourage eStatement registration, if customer has registered for
+eStatement in connection with the respective account(s), when the
+relevant Consolidated or Credit Card statement(s) for the past 7 years is/
+are issued, the Bank will waive the statement retrieval fee for up to 6
+copies per request. The waiver of statement retrieval fee is not applicable
+to Standard Chartered SHOP’n GAIN/SHOP’n GAIN Platinum Credit
+Card, and designated Mastercard (card number starting with 5488).
+22 Cash Withdrawal
+Fee8 (By cheque/
+cashier order)
+Standard Chartered Credit Card HK$/CNY75 per cheque
+MANHATTAN Credit Card Free if transfer to Standard Chartered account
+HK$75 per cheque
+23 Over-the-Counter
+Payment Handling
+Fee
+All Credit Cards (not applicable to
+Priority Banking Credit Card and
+Visa Infinite Card)
+HK$30 per transaction
+24 Limit on Cash
+Advance2
+(if applicable)
+All Credit Cards Your Limit on Cash Advance will be reviewed from time to time by
+the Bank. Your latest Limit on Cash Advance at any relevant time
+can be ascertained by calling 24-hour Customer Service Hotline.
+25 Over-limit electronic
+fund transfer
+handling fee
+All Credit Cards A 3.5% handling fee will apply to the transferred amount beyond
+HK$25,000 and charges will be debited to the valid Credit Card
+account with the highest transferred amount if the total accumulated
+money transfers made by using electronic banking services, person to
+person (P2P) payment services or mobile device/app/electronic
+funds transfer platform effective from time-to-time to make any
+money/electronic money transfer/top up transaction from Standard
+Chartered/MANHATTAN Credit Card(s) to a specified account
+(including but not limited to Octopus Wallet) exceed HK$25,000 per
+Cardholder in a calendar month (based on the transaction date). If
+the last day of a calendar month is a Sunday, any related transactions
+made on that day will be counted in the following calendar month. If
+the transaction is made on the first day of a calendar month and prior
+to or in between system update period, the transaction will be
+counted as made in the preceding calendar month.
+When a Cardholder makes an electronic fund transfer that exceeds
+the limit, s/he will be prompted in Online Banking and/or mobile app
+to acknowledge the available transfer amount and any applicable
+handling fee if such amount is exceeded. Upon the Cardholder’s
+acknowledgment and by proceeding with the transfer, the Cardholder
+is deemed to have accepted the handling fee as stipulated in any
+prevailing promotional terms and conditions (if applicable).
+26 Paper Statement
+Fees
+All Credit Cards except Standard
+Chartered SHOP’n GAIN Platinum
+Credit Card, Standard Chartered
+SHOP’n GAIN Credit Card,
+Standard Chartered Corporate
+VISA Card, Standard Chartered
+Visa Signature Business Card and
+designated Mastercard
+(card number starting with 5488)
+HK$10 per month, applicable to customers who receive any of
+the following paper statement(s)
+– Consolidated Statement,
+– Credit Card Statement,
+– Current/Savings account Statement(s),
+– Standard Chartered Revolving Cash Card Statement(s) AND
+– MANHATTAN Revolving Personal Loan Statement(s)
+Note: The fee will be waived for below customers:
+– Customers aged below 18 or 65 and above
+– Customers who hold Click-a-Count
+– Recipients of government disability allowances/allowance for
+elderlies or Comprehensive Social Security Assistance 
+SCB_CC_Key Facts_WP (12/2024)
+* Including Credit Cards issued by Standard Chartered Bank (Hong Kong) Limited and together with other organizations.
+1. The Annualised Percentage Rate (“APR”) is calculated based on the guidelines as set out in the Code of Banking Practice and is for
+reference only, inclusive of Cash Advance Fee (if applicable).
+2. The Bank may or may not allow you to use your UnionPay Dual Currency Platinum Credit Card to obtain cash advance.
+3. It will be subject to the default maximum rates for interest on purchase and cash advance. Finance charge for cash advance may be
+accrued after the statement cut-off date and will be displayed in the next statement. Please call our 24-hour Standard Chartered
+Credit Card Customer Service Hotline at 2886 4111 or MANHATTAN Credit Card Customer Service Hotline at 2881 0888 to ascertain
+your prevailing or applicable interest rate, accrued finance charge for cash advance and how to fully settle the cash advance finance
+charge before the next statement date.
+4. Supplementary Card is not applicable to MANHATTAN id Platinum Credit Card and MANHATTAN id Credit Card. Effective from
+1 December 2016, a maximum of 3 Supplementary Cards can be issued for each Credit Card Account.
+5. Free for up to 3 Supplementary Cards, annual fee for each subsequent Supplementary Card is HK$900.
+6. Free for up to 3 Supplementary Cards, annual fee for each subsequent Supplementary Card is HK$1,200.
+7. Transactions made over the counter applicable for Hong Kong Dollars cash advance in Hong Kong only.
+8. For CNY Account, related fees and charges will be payable in CNY. The sum will be billed to the CNY Account of your UnionPay Dual
+Currency Platinum Card.
+9. The rate as printed on MANHATTAN credit card statement will be shown as 0.085%, however the one as printed on the key fact
+statement shall prevail.
+10. Effective from 25th November 2017,
+• Click-a-Count Titanium Credit Card(s) were replaced by Standard Chartered executive platinum Credit Card(s) with the same
+credit card number and annual fee. (Principal Card: waived; Supplementary Card4: N/A)
+• MANHATTAN id Mastercard(s) were replaced by MANHATTAN id Platinum Mastercard(s) with the same credit card number and
+annual fee. (Principal Card: HKD216; Supplementary card4: HKD108)
+• MANHATTAN Mastercard(s)/Orbis Mastercard(s) were replaced by MANHATTAN Platinum Mastercard(s) with the same credit
+card number and annual fee. (Principal Card: HKD216; Supplementary card4: HKD108)
+• MANHATTAN Orbis Gold Mastercard(s) were replaced by MANHATTAN Titanium Mastercard(s) with the same credit card number
+and annual fee. (Principal Card: HKD600; Supplementary card4: HKD300)
+• Standard Chartered Mastercard(s) (The first 4 digits of card number is 5488) were replaced by Standard Chartered Platinum
+Mastercard(s) with the same credit card number and annual fee. (Principal Card: HKD250; Supplementary card4: HKD125)
+Note:
+i. The Bank reserves the right to vary the fees/charges for customers based on their account record from time to time by notice.
+ii. The above items may from time to time be varied by notice to customers.
+iii. The provision of Credit Card services to you is subject to your acceptance of the above charges and the applicable relevant terms and
+conditions. If you want a copy of the terms and conditions or have any inquiries on the above items, please call our 24-hour
+Standard Chartered Credit Card Customer Service Hotline 2886 4111 or MANHATTAN Credit Card Customer Service Hotline at 2881 0888.
+iv. In case you have any comment on the key facts statement, please write to Standard Chartered Bank (Hong Kong) Limited, P.O. Box
+68397, Kowloon East Post Office, Hong Kong.
+v. If there is any inconsistency or conflict between the English and Chinese versions, the English version shall prevail.
+Manhattan Card – a division of Standard Chartered Bank (Hong Kong) Limited
+"""
 
 # --- New Card Comparison Data as Text ---
 card_comparison_text = """

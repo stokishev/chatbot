@@ -17,18 +17,11 @@ from langchain.docstore.document import Document
 from config import full_knowledge_text # (Ensure other necessary imports from config are present if needed)
 
 # --- Logging Configuration ---
-# Configure logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-# INFO logs general events, DEBUG logs detailed info (like full context)
 log_level = logging.DEBUG
 log_format = '%(asctime)s - %(levelname)s - %(name)s - %(message)s'
 log_file = 'chatbot.log' # Optional: File to log to
 
-logging.basicConfig(level=log_level, format=log_format) # Basic config logs to stderr
-
-# Optional: Add a file handler to log to a file as well
-# file_handler = logging.FileHandler(log_file)
-# file_handler.setFormatter(logging.Formatter(log_format))
-# logging.getLogger().addHandler(file_handler) # Add handler to the root logger
+logging.basicConfig(level=log_level, format=log_format)
 
 # Get a logger instance for this module
 logger = logging.getLogger(__name__)
@@ -90,8 +83,8 @@ def initialize_vector_store(text_data, _embedding_function, _persist_directory, 
         logger.info(f"Creating new vector store in: {_persist_directory}")
         docs = [Document(page_content=text_data)]
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,  # Smaller chunk size
-            chunk_overlap=100, # Maybe increase overlap slightly
+            chunk_size=500,  
+            chunk_overlap=100, 
             length_function=len,
         )
         try:
@@ -114,7 +107,7 @@ def initialize_vector_store(text_data, _embedding_function, _persist_directory, 
             logger.info(f"Created and persisted new vector store with {vectorstore._collection.count()} documents.")
 
         except Exception as e:
-            logger.exception(f"Fatal error during vector store creation: {e}") # Log full traceback
+            logger.exception(f"Fatal error during vector store creation: {e}") 
             st.error(f"Fatal error creating knowledge base: {e}")
             st.stop()
             return None
@@ -128,7 +121,7 @@ st.title("💳 Standard Chartered HK - Credit Card FAQ")
 def clear_chat_history():
     logger.info("Clearing chat history.")
     st.session_state.messages = [{"role": "assistant", "content": "Hi! Ask me about Standard Chartered HK Credit Card features, fees, offers, or services."}]
-    # No need for st.success here, button click is implicit feedback
+    
 
 st.button('Clear Chat History', on_click=clear_chat_history)
 
@@ -144,14 +137,14 @@ else:
         embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key, model="text-embedding-3-small")
         logger.info("OpenAI client and embeddings initialized successfully.")
     except Exception as e:
-        logger.exception("Failed to initialize OpenAI Client or Embeddings.") # Log full traceback
+        logger.exception("Failed to initialize OpenAI Client or Embeddings.") 
         st.error(f"Failed to initialize OpenAI services: {e}")
         st.stop()
 
     # --- Load or Initialize Vector Store ---
     vectorstore = initialize_vector_store(
         full_knowledge_text,
-        embeddings, # Note: passed without underscore here
+        embeddings, 
         persist_directory,
         collection_name,
         force_recreate_db
@@ -159,7 +152,6 @@ else:
 
     if vectorstore is None:
         logger.error("Vector store initialization failed. Stopping execution.")
-        # Error already shown in initialize_vector_store
         st.stop()
 
     # --- Initialize chat history ---
@@ -185,7 +177,7 @@ else:
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 # --- RAG Step: Retrieve ---
-                context = "Error during context retrieval." # Default error context
+                context = "Error during context retrieval." 
                 retrieved_docs_content = [] # To store content for logging
                 try:
                     logger.info(f"Retrieving relevant documents for query: '{prompt}'")
@@ -201,13 +193,11 @@ else:
                     retrieved_docs_content = [doc.page_content for doc in retrieved_docs]
                     context = "\n\n---\n\n".join(retrieved_docs_content)
                     logger.info(f"Retrieved {len(retrieved_docs)} documents.")
-                    # Use DEBUG level for full context as it can be very long
                     logger.debug(f"Retrieved context:\n{context}")
 
                 except Exception as e:
-                    logger.exception("Error retrieving documents from vector store.") # Log full traceback
+                    logger.exception("Error retrieving documents from vector store.") 
                     st.error(f"Error retrieving information from knowledge base: {e}")
-                    # Keep default error context
 
                 # --- RAG Step: Augment Prompt ---
                 system_message_content = """You are an AI assistant for Standard Chartered HK credit cards.
@@ -222,13 +212,12 @@ else:
                     {"role": "system", "content": system_message_content},
                     {"role": "user", "content": f"Based on the following information:\n\nContext:\n---\n{context}\n---\n\nQuestion: {prompt}"}
                 ]
-                # Use DEBUG level for full prompt logging as it includes context
                 logger.debug(f"Messages prepared for OpenAI API: {messages_for_api}")
                 logger.info("Sending request to OpenAI API.")
 
 
                 # --- RAG Step: Generate ---
-                response = "Sorry, I encountered an error processing your request." # Default error response
+                response = "Sorry, I encountered an error processing your request." 
                 try:
                     stream = client.chat.completions.create(
                         model="gpt-4o-mini",
@@ -240,18 +229,16 @@ else:
                     # Stream response to the chat
                     response = st.write_stream(stream)
                     logger.info("Successfully received stream response from OpenAI.")
-                    # Log full response at DEBUG level
                     logger.debug(f"LLM Response: {response}")
 
 
                 except Exception as e:
-                    logger.exception("Error calling OpenAI API.") # Log full traceback
+                    logger.exception("Error calling OpenAI API.") 
                     st.error(f"An error occurred while communicating with the AI: {e}")
                     # Keep default error response
 
             # Add assistant response (or error message) to chat history
             st.session_state.messages.append({"role": "assistant", "content": response})
-            # Ensure the final response (even if default error) is logged if not streamed
             if 'stream' not in locals(): # If API call failed before stream started
                  logger.warning(f"Assistant final response (error default): {response}")
 

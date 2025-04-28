@@ -5,7 +5,7 @@ import json
 import decimal
 import os
 import shutil
-import logging # <-- Import logging module
+import logging 
 
 # --- RAG Libraries ---
 from langchain_community.vectorstores import Chroma
@@ -14,12 +14,12 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 
 # --- Load Data from Config ---
-from config import full_knowledge_text # (Ensure other necessary imports from config are present if needed)
+from config import full_knowledge_text 
 
 # --- Logging Configuration ---
 log_level = logging.DEBUG
 log_format = '%(asctime)s - %(levelname)s - %(name)s - %(message)s'
-log_file = 'chatbot.log' # Optional: File to log to
+log_file = 'chatbot.log'
 
 logging.basicConfig(level=log_level, format=log_format)
 
@@ -27,7 +27,7 @@ logging.basicConfig(level=log_level, format=log_format)
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-openai_api_key = st.secrets.get("openai_api_key") # Use .get for safer access
+openai_api_key = st.secrets.get("openai_api_key") 
 persist_directory = 'sc_hk_card_db'
 collection_name = "sc_hk_card_info"
 force_recreate_db = True
@@ -120,7 +120,7 @@ st.title("💳 Standard Chartered HK - Credit Card FAQ")
 
 def clear_chat_history():
     logger.info("Clearing chat history.")
-    st.session_state.messages = [{"role": "assistant", "content": "Hi! Ask me about Standard Chartered HK Credit Card features, fees, offers, or services."}]
+    st.session_state.messages = [{"role": "assistant", "content": "Hi! Ask me about Standard Chartered HK Credit Cards."}]
     
 
 st.button('Clear Chat History', on_click=clear_chat_history)
@@ -157,7 +157,7 @@ else:
     # --- Initialize chat history ---
     if "messages" not in st.session_state:
         logger.info("Initializing chat history session state.")
-        st.session_state.messages = [{"role": "assistant", "content": "Hi! Ask me about Standard Chartered HK Credit Card features, fees, offers, or services."}]
+        st.session_state.messages = [{"role": "assistant", "content": "Hi! Ask me anything about Standard Chartered HK Credit Cards."}]
 
     # Display chat messages from history
     for message in st.session_state.messages:
@@ -165,7 +165,7 @@ else:
             st.markdown(message["content"])
 
     # --- Handle user input ---
-    if prompt := st.chat_input("Ask about cards, fees, offers or services..."):
+    if prompt := st.chat_input("Ask about cards, fees, offers, services etc..."):
         logger.info(f"User input received: '{prompt}'")
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})

@@ -714,6 +714,21 @@ wrapt = ">=1.10,<2"
 dev = ["PyTest", "PyTest-Cov", "bump2version (<1)", "setuptools ; python_version >= \"3.12\"", "tox"]
 
 [[package]]
+name = "deprecation"
+version = "2.1.0"
+description = "A library to handle automated deprecations"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "deprecation-2.1.0-py2.py3-none-any.whl", hash = "sha256:a10811591210e1fb0e768a8c25517cabeabcba6f0bf96564f8ff45189f90b14a"},
+    {file = "deprecation-2.1.0.tar.gz", hash = "sha256:72b3bde64e5d778694b0cf68178aed03d15e15477116add3fb773e581f9518ff"},
+]
+
+[package.dependencies]
+packaging = "*"
+
+[[package]]
 name = "distro"
 version = "1.9.0"
 description = "Distro - an OS platform information API"
@@ -3890,6 +3905,22 @@ watchdog = {version = ">=2.1.5,<7", markers = "platform_system != \"Darwin\""}
 snowflake = ["snowflake-connector-python (>=3.3.0) ; python_version < \"3.12\"", "snowflake-snowpark-python[modin] (>=1.17.0) ; python_version < \"3.12\""]
 
 [[package]]
+name = "streamlit-modal"
+version = "0.1.2"
+description = "Modal for streamlit"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "streamlit_modal-0.1.2-py3-none-any.whl", hash = "sha256:60dac7590fd7a168d046cc03335460ac323b060676818bf8000949a878c74386"},
+    {file = "streamlit_modal-0.1.2.tar.gz", hash = "sha256:3c169aed6e659fd834e3526ffac285efd77867c2e5847131c2fa9d441468a522"},
+]
+
+[package.dependencies]
+deprecation = "*"
+streamlit = "*"
+
+[[package]]
 name = "sympy"
 version = "1.13.3"
 description = "Computer algebra system (CAS) in Python"
@@ -4797,4 +4828,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "d4cc7c2f56fec48d4fd32f2ebf09c10d78a5b0638e93f0f79b0dbe06d1f393d9"
+content-hash = "1264cf628d3f472368c0c69ed4cc4d7511caba6cf602f87fe67436f12277210a"

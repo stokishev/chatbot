@@ -18,6 +18,8 @@ langchain-community = "^0.3.22"
 chromadb = "^0.4.24"
 streamlit-modal = "^0.1.2"
 requests = "^2.32.3"
+faiss-cpu = "^1.7.4"
+python-dotenv = "^1.1.0"
 
 
 [build-system]

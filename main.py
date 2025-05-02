@@ -3,30 +3,34 @@ import sys
 import streamlit as st
 import requests
 import json
-import os
-# import shutil # No longer needed for directory management
+import os # Keep os for path checking
+# import shutil # No longer needed
 import logging
 import time
 from typing import List
 
 # --- RAG Libraries ---
-from langchain_community.vectorstores import Chroma
+# REMOVE Chroma imports related to client/persistence if any remain
+# from langchain_community.vectorstores import Chroma
+# import chromadb
+# from chromadb.config import Settings
+# from chromadb.errors import CollectionNotFoundError
+
+from langchain_community.vectorstores import FAISS # ADD FAISS import
 from langchain_core.embeddings import Embeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.docstore.document import Document
-import chromadb # Import the chromadb client library
-from chromadb.config import Settings # For client settings if needed
-# from chromadb.errors import CollectionNotFoundError # Specific error for checking collection existence
+from langchain.text_splitter import RecursiveCharacterTextSplitter # Keep if needed elsewhere, maybe not?
+from langchain.docstore.document import Document # Keep if needed elsewhere, maybe not?
+
 
 # --- Load Data from Config ---
-from config import full_knowledge_text
+from config import full_knowledge_text # Still needed for reference or maybe not? Decide if needed beyond index.
 
 # --- Logging Configuration ---
 log_level = logging.DEBUG
 log_format = '%(asctime)s - %(levelname)s - %(name)s - %(message)s'
-log_file = 'chatbot.log' # Log file might be less useful in ephemeral environments like Streamlit Cloud
+# log_file = 'chatbot.log' # Less useful in cloud
 
-logging.basicConfig(level=log_level, format=log_format, stream=sys.stdout) # Log to stdout for cloud environments
+logging.basicConfig(level=log_level, format=log_format, stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 
@@ -39,8 +43,9 @@ class UniversityEmbeddings(Embeddings):
         base_url: str,
         model_name: str,
         api_version: str,
-        embed_batch_size: int = 1 # Process texts one by one by default
+        embed_batch_size: int = 1
     ):
+        # ... (rest of init) ...
         self.api_key = api_key
         # Construct the specific endpoint URL for embeddings
         self.endpoint_url = f"{base_url}/deployments/{model_name}/embeddings?api-version={api_version}"
@@ -52,7 +57,7 @@ class UniversityEmbeddings(Embeddings):
         logger.info(f"Initialized UniversityEmbeddings with endpoint: {self.endpoint_url}")
 
     def _embed(self, texts: List[str]) -> List[List[float]]:
-        """Internal method to handle embedding requests."""
+        # ... (Your _embed method) ...
         all_embeddings = []
         for i in range(0, len(texts), self.embed_batch_size):
              batch = texts[i:i + self.embed_batch_size]
@@ -69,8 +74,6 @@ class UniversityEmbeddings(Embeddings):
 
                   all_embeddings.extend(batch_embeddings)
                   logger.debug(f"Successfully embedded batch of {len(batch)} texts.")
-                  # Optional: Add a small delay if hitting rate limits
-                  # if len(texts) > 10: time.sleep(0.05)
 
              except requests.exceptions.Timeout:
                   logger.error(f"Timeout while embedding batch starting with: '{batch[0][:50]}...'")
@@ -95,8 +98,9 @@ class UniversityEmbeddings(Embeddings):
 
         return all_embeddings
 
+
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        """Embed a list of documents."""
+        # ... (Your embed_documents method) ...
         if not texts:
              logger.warning("embed_documents called with empty list.")
              return []
@@ -107,8 +111,9 @@ class UniversityEmbeddings(Embeddings):
         logger.info(f"Finished embedding documents in {end_time - start_time:.2f} seconds.")
         return embeddings
 
+
     def embed_query(self, text: str) -> List[float]:
-        """Embed a single query."""
+        # ... (Your embed_query method) ...
         if not text:
              logger.warning("embed_query called with empty string.")
              return [] # Return empty list or handle as error?
@@ -118,169 +123,62 @@ class UniversityEmbeddings(Embeddings):
         end_time = time.time()
         logger.info(f"Finished embedding query in {end_time - start_time:.2f} seconds.")
         return query_embedding
-# --- End of Custom University Embedding Class ---
-
 
 # --- Configuration ---
-# *** University API Configuration ***
+# *** University API Configuration (Only API Key needed from secrets now) ***
 university_api_key = st.secrets.get("university_api_key")
 university_base_url = "https://genai.hkbu.edu.hk/general/rest"
-university_chat_model_name = "gpt-4-o-mini" # Model for chat
-university_embedding_model_name = "text-embedding-3-large"
+university_chat_model_name = "gpt-4-o-mini"
+university_embedding_model_name = "text-embedding-3-large" # Still needed for embeddings object
 university_api_version = "2024-05-01-preview"
 EMBEDDING_BATCH_SIZE = 16
 
 # --- Vector Store Configuration ---
-# persist_directory = 'sc_hk_card_db' # REMOVED: No longer persisting locally
-collection_name = "sc_hk_card_info"
-force_recreate_db = True # Be careful with this in production!
+# REMOVED Chroma specific config
+# collection_name = "sc_hk_card_info"
+# REMOVED ChromaDB Server Config
+# chroma_host = st.secrets.get("CHROMA_HOST")
+# chroma_port = st.secrets.get("CHROMA_PORT", "8000")
 
-# *** ChromaDB Server Configuration (Fetch from Secrets) ***
-chroma_host = st.secrets.get("CHROMA_HOST")
-chroma_port = st.secrets.get("CHROMA_PORT", "8000") # Default Chroma port is 8000
+FAISS_INDEX_PATH = "faiss_index" # Path where index files are stored in the repo
 
-# --- Helper function to initialize Vector Store (MODIFIED for alternative error handling) ---
-@st.cache_resource(show_spinner="Connecting to Knowledge Base...")
-def initialize_vector_store(text_data, _embedding_function, _collection_name, _chroma_host, _chroma_port, _force_recreate=False):
-    logger.info(f"Attempting to connect to ChromaDB server at {_chroma_host}:{_chroma_port}")
+# --- Helper function to initialize Vector Store (MODIFIED FOR FAISS) ---
+@st.cache_resource(show_spinner="Loading Knowledge Base...")
+def initialize_vector_store(_embedding_function):
+    logger.info(f"Attempting to load FAISS index from path: {FAISS_INDEX_PATH}")
     vectorstore = None
-    chroma_client = None
 
-    if not _chroma_host:
-        st.error("ChromaDB host address is not configured in Streamlit secrets (key: CHROMA_HOST).")
-        logger.error("CHROMA_HOST secret not found.")
+    if not os.path.exists(FAISS_INDEX_PATH) or \
+       not os.path.exists(os.path.join(FAISS_INDEX_PATH, "index.faiss")) or \
+       not os.path.exists(os.path.join(FAISS_INDEX_PATH, "index.pkl")):
+        error_msg = f"FAISS index files not found in directory '{FAISS_INDEX_PATH}'. " \
+                    "Please ensure 'index.faiss' and 'index.pkl' were created and committed to the repository."
+        logger.error(error_msg)
+        st.error(error_msg)
         st.stop()
         return None
 
     try:
-        chroma_client = chromadb.HttpClient(
-            host=_chroma_host,
-            port=_chroma_port,
-            settings=Settings(allow_reset=True, anonymized_telemetry=False)
+        vectorstore = FAISS.load_local(
+            folder_path=FAISS_INDEX_PATH,
+            embeddings=_embedding_function,
+            # Deserialization needs to be allowed for loading the .pkl file
+            # This is safe if you trust the source of the index files (which you do, as you generated them)
+            allow_dangerous_deserialization=True
         )
-        chroma_client.heartbeat()
-        logger.info("Successfully connected to ChromaDB server.")
-
+        logger.info(f"Successfully loaded FAISS index from {FAISS_INDEX_PATH}")
     except Exception as e:
-        logger.exception(f"Failed to connect to ChromaDB server at {_chroma_host}:{_chroma_port}: {e}")
-        st.error(f"Error connecting to the Knowledge Base server ({_chroma_host}:{_chroma_port}). Please ensure it's running and accessible.")
+        logger.exception(f"Error loading FAISS index from {FAISS_INDEX_PATH}: {e}")
+        st.error(f"Failed to load the Knowledge Base from local files: {e}")
         st.stop()
         return None
-
-    collection_exists = False
-    try:
-        # *** MODIFICATION START ***
-        # Check using list_collections instead of relying on get_collection's exception
-        existing_collections = chroma_client.list_collections()
-        collection_names = [col.name for col in existing_collections]
-
-        if _collection_name in collection_names:
-            logger.info(f"Collection '{_collection_name}' found in list on ChromaDB server.")
-            collection_exists = True
-        else:
-            logger.info(f"Collection '{_collection_name}' not found in list on ChromaDB server.")
-            collection_exists = False
-        # *** MODIFICATION END ***
-
-    except Exception as e:
-        # Handle potential errors during list_collections itself
-        logger.exception(f"Error checking for collection '{_collection_name}' via list_collections: {e}")
-        st.error(f"Error accessing Knowledge Base collection list '{_collection_name}'.")
-        collection_exists = False # Assume it doesn't exist or is inaccessible if error
-
-    # --- Force recreate logic remains the same ---
-    if _force_recreate and collection_exists:
-        logger.warning(f"Force recreating DB. Deleting existing collection: {_collection_name}")
-        try:
-            chroma_client.delete_collection(name=_collection_name)
-            logger.info(f"Successfully deleted collection: {_collection_name}")
-            collection_exists = False
-            time.sleep(1)
-        except Exception as e:
-            logger.error(f"Error deleting collection {_collection_name}: {e}")
-            st.error(f"Error deleting existing Knowledge Base collection '{_collection_name}'. Please check ChromaDB server logs.")
-            st.stop()
-            return None
-
-    # --- Loading/Creation logic remains the same, relying on the collection_exists flag ---
-    if collection_exists:
-        try:
-            logger.info(f"Attempting to load existing vector store '{_collection_name}' using Langchain Chroma client.")
-            vectorstore = Chroma(
-                client=chroma_client,
-                collection_name=_collection_name,
-                embedding_function=_embedding_function,
-            )
-            count = vectorstore._collection.count()
-            if count == 0:
-                logger.warning(f"Remote vector store '{_collection_name}' exists but is empty. Re-initializing.")
-                collection_exists = False
-                try:
-                    chroma_client.delete_collection(name=_collection_name)
-                    logger.info(f"Deleted empty collection '{_collection_name}'.")
-                except Exception as e_del:
-                    logger.error(f"Failed to delete empty collection '{_collection_name}': {e_del}")
-            else:
-                logger.info(f"Successfully loaded vector store '{_collection_name}' with {count} documents from ChromaDB server.")
-        except Exception as e:
-            logger.exception(f"Error loading existing vector store '{_collection_name}' from client: {e}. Will attempt re-initialization if possible.")
-            st.warning(f"Could not load existing knowledge base '{_collection_name}'. Attempting to create a new one.")
-            vectorstore = None
-            collection_exists = False
-
-    if not collection_exists:
-        # ... (rest of the creation logic using Chroma.from_documents) ...
-        logger.info(f"Creating new vector store collection: {_collection_name} on ChromaDB server.")
-        if not text_data:
-            logger.error("Source text data is empty. Cannot initialize vector store.")
-            st.error("Error: The source knowledge text is empty. Cannot build the knowledge base.")
-            st.stop()
-            return None
-
-        docs = [Document(page_content=text_data)]
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=100,
-            length_function=len,
-        )
-        try:
-            chunks = text_splitter.split_documents(docs)
-            logger.info(f"Split data into {len(chunks)} chunks.")
-
-            if not chunks:
-                logger.error("No chunks were created from the source data.")
-                st.error("Error: No text chunks could be created from the source data.")
-                st.stop()
-                return None
-
-            logger.info(f"Creating Chroma collection '{_collection_name}' via Langchain with {type(_embedding_function)}.")
-            vectorstore = Chroma.from_documents(
-                documents=chunks,
-                embedding=_embedding_function,
-                collection_name=_collection_name,
-                client=chroma_client,
-            )
-            time.sleep(2)
-            count = vectorstore._collection.count()
-            logger.info(f"Created and populated collection '{_collection_name}' with {count} documents on ChromaDB server.")
-            if count == 0:
-                logger.error("Vector store collection created but appears empty. Check embedding process and API responses.")
-                st.error("Error: Knowledge base was created but seems empty. Check logs for embedding errors.")
-                st.stop()
-                return None
-
-        except Exception as e:
-            logger.exception(f"Fatal error during vector store creation on ChromaDB server: {e}")
-            st.error(f"Fatal error creating knowledge base on ChromaDB server: {e}")
-            st.stop()
-            return None
 
     return vectorstore
 
 # --- Streamlit App UI ---
 st.set_page_config(page_title="Credit Card FAQ Chatbot", page_icon="💳")
 st.title("💳 Standard Chartered HK - Credit Card FAQ")
-st.markdown("Using HKBU GenAI Platform API (Chat & Embeddings) | Knowledge Base via ChromaDB Server") # Updated description
+st.markdown("Using HKBU GenAI Platform API (Chat & Embeddings) | Knowledge Base via FAISS") # Updated description
 
 def clear_chat_history():
     logger.info("Clearing chat history.")
@@ -293,14 +191,10 @@ if not university_api_key:
     st.info("Please add your University API key to Streamlit secrets (key: university_api_key) to continue.", icon="🗝️")
     logger.warning("University API key not found in secrets.")
     st.stop()
-elif not chroma_host:
-    # Error message already handled in initialize_vector_store if secret is missing
-    # st.info("Please add your ChromaDB server host to Streamlit secrets (key: CHROMA_HOST).", icon="☁️")
-    logger.warning("ChromaDB host not found in secrets.")
-    st.stop() # Stop here if Chroma host is missing
 else:
     # *** Initialize Custom University Embeddings ***
     try:
+        # Embeddings object is needed for loading the FAISS index
         embeddings = UniversityEmbeddings(
             api_key=university_api_key,
             base_url=university_base_url,
@@ -308,31 +202,19 @@ else:
             api_version=university_api_version,
             embed_batch_size=EMBEDDING_BATCH_SIZE
         )
-        logger.info(f"University Embeddings client initialized successfully with batch size {embeddings.embed_batch_size}.")
+        logger.info(f"University Embeddings client initialized successfully.")
     except Exception as e:
         logger.exception("Failed to initialize University Embeddings client.")
         st.error(f"Failed to initialize University Embeddings service: {e}")
         st.stop()
 
-    # --- Connect to or Initialize Vector Store on ChromaDB Server ---
-    vectorstore = initialize_vector_store(
-        full_knowledge_text,
-        embeddings, # Pass the initialized embedding function
-        collection_name,
-        chroma_host,
-        chroma_port,
-        force_recreate_db # Pass the flag
-    )
+    # --- Load FAISS Vector Store from local files ---
+    vectorstore = initialize_vector_store(embeddings) # Pass embeddings object
 
     if vectorstore is None:
-        # Errors should be handled within initialize_vector_store, but double-check
-        logger.error("Vector store initialization failed. Stopping execution.")
-        if not st.secrets.get("CHROMA_HOST"):
-             st.error("Knowledge base connection failed: ChromaDB host not configured in secrets.")
-        else:
-             st.error("Failed to initialize/connect to the knowledge base. Please check the logs and ensure the ChromaDB server is running and accessible.")
+        logger.error("FAISS vector store loading failed. Stopping execution.")
+        # Error message should have been displayed in initialize_vector_store
         st.stop()
-
 
     # --- Initialize chat history ---
     if "messages" not in st.session_state:
@@ -351,44 +233,43 @@ else:
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Add a thinking indicator
         with st.chat_message("assistant"):
             thinking_message = st.empty()
             thinking_message.markdown("Thinking... *(Accessing knowledge base & generating response)*")
             with st.spinner("Processing your request..."):
-                # --- RAG Step: Retrieve ---
+                # --- RAG Step: Retrieve (Now uses FAISS) ---
                 context = "Error during context retrieval."
                 retrieved_docs_content = []
                 try:
-                    logger.info(f"Retrieving relevant documents for query: '{prompt}' from ChromaDB server.")
-                    # Ensure the vectorstore object is valid before creating retriever
+                    logger.info(f"Retrieving relevant documents for query: '{prompt}' from FAISS index.")
                     if vectorstore:
+                        # The retriever works the same way with FAISS vectorstore object
                         retriever = vectorstore.as_retriever(
                             search_type="similarity",
-                            search_kwargs={"k": 10} # Retrieve top 10 docs
+                            search_kwargs={"k": 10}
                         )
-                        # The retriever uses the embedding function associated with the vectorstore
+                        # Retriever uses the embed_query method from the embeddings object passed during loading
                         retrieved_docs = retriever.invoke(prompt)
                         retrieved_docs_content = [doc.page_content for doc in retrieved_docs]
 
                         if not retrieved_docs_content:
-                            logger.warning("No relevant documents found in the remote knowledge base for the query.")
+                            logger.warning("No relevant documents found in the FAISS knowledge base for the query.")
                             context = "No specific information found in the knowledge base for this query."
                         else:
                             context = "\n\n---\n\n".join(retrieved_docs_content)
-                            logger.info(f"Retrieved {len(retrieved_docs)} documents from ChromaDB server.")
+                            logger.info(f"Retrieved {len(retrieved_docs)} documents from FAISS index.")
                             logger.debug(f"Retrieved context:\n{context[:500]}...")
                     else:
-                         logger.error("Vectorstore object is invalid/None. Cannot retrieve documents.")
+                         logger.error("Vectorstore object (FAISS) is invalid/None. Cannot retrieve documents.")
                          context = "Error: Failed to access the knowledge base (invalid vectorstore)."
 
-
                 except Exception as e:
-                    logger.exception("Error retrieving documents from vector store client.")
-                    st.error(f"Error retrieving information from knowledge base server: {e}")
-                    context = "Error: Failed to access the knowledge base server."
+                    logger.exception("Error retrieving documents from FAISS vector store.")
+                    st.error(f"Error retrieving information from knowledge base files: {e}")
+                    context = "Error: Failed to access the knowledge base files."
 
                 # --- RAG Step: Augment Prompt (No changes needed here) ---
+                # ... (system_message_content and messages_for_api remain the same) ...
                 system_message_content = """You are an AI assistant for Standard Chartered HK credit cards.
                 - Answer the user's question based *ONLY* on the provided context below.
                 - Be concise and directly address the question.
@@ -401,9 +282,9 @@ else:
                     {"role": "system", "content": system_message_content},
                     {"role": "user", "content": f"Based on the following information:\n\nContext:\n---\n{context}\n---\n\nQuestion: {prompt}"}
                 ]
-                logger.debug(f"Messages prepared for University Chat API: {messages_for_api}")
 
                 # --- RAG Step: Generate (No changes needed here) ---
+                # ... (API call logic to University Chat API remains the same) ...
                 response_content = "Sorry, I encountered an error processing your request."
                 try:
                     url = f"{university_base_url}/deployments/{university_chat_model_name}/chat/completions?api-version={university_api_version}"
@@ -452,13 +333,11 @@ else:
                     logger.exception("An unexpected error occurred during University Chat API interaction.")
                     st.error(f"An unexpected error occurred: {e}")
 
-            # *** Clear the 'Thinking...' message and display the final response ***
-            thinking_message.empty() # Remove the spinner/message
-            st.markdown(response_content) # Display the complete response
+
+            thinking_message.empty()
+            st.markdown(response_content)
             logger.info(f"Assistant final response displayed.")
 
-
-        # Add assistant response (or error message) to chat history
         st.session_state.messages.append({"role": "assistant", "content": response_content})
 
 # --- End of App Logic ---

@@ -4,22 +4,19 @@ import logging
 from dotenv import load_dotenv
 
 # --- RAG Libraries ---
-# Make sure these imports match your main.py structure for consistency
 from langchain_community.vectorstores import FAISS
 from langchain_core.embeddings import Embeddings # Base class for UniversityEmbeddings if needed separately
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 
-# --- Your Custom Classes/Data ---
-from main import UniversityEmbeddings # Import your existing embedding class
-from config import full_knowledge_text # Import your knowledge base text
+from main import UniversityEmbeddings 
+from config import full_knowledge_text 
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 load_dotenv() # Load environment variables from .env file
 
 # --- Secrets & Settings ---
-# Load API key from environment variables for local script execution
 UNIVERSITY_API_KEY = os.getenv("UNIVERSITY_API_KEY")
 if not UNIVERSITY_API_KEY:
     logging.error("UNIVERSITY_API_KEY not found in .env file.")

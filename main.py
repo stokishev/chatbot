@@ -1,4 +1,15 @@
 # main.py
+import sys
+try:
+    # Attempt to replace the standard sqlite3 module with pysqlite3
+    __import__('pysqlite3')
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+    print("Successfully patched sqlite3 with pysqlite3.") # Add a print statement for confirmation
+except ImportError:
+    print("pysqlite3 not found, using standard sqlite3.")
+except Exception as e:
+    print(f"Error patching sqlite3: {e}")
+
 import streamlit as st
 import requests
 import json

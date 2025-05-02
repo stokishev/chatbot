@@ -1,29 +1,22 @@
 # main.py
 import sys
-try:
-    # Attempt to replace the standard sqlite3 module with pysqlite3
-    __import__('pysqlite3')
-    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-    print("Successfully patched sqlite3 with pysqlite3.") # Add a print statement for confirmation
-except ImportError:
-    print("pysqlite3 not found, using standard sqlite3.")
-except Exception as e:
-    print(f"Error patching sqlite3: {e}")
-
 import streamlit as st
 import requests
 import json
 import os
-import shutil
+# import shutil # No longer needed for directory management
 import logging
-import time # Added for embedding timing/delays
-from typing import List # Added for type hinting in Embeddings class
+import time
+from typing import List
 
 # --- RAG Libraries ---
 from langchain_community.vectorstores import Chroma
-from langchain_core.embeddings import Embeddings # Base class for our custom one
+from langchain_core.embeddings import Embeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
+import chromadb # Import the chromadb client library
+from chromadb.config import Settings # For client settings if needed
+# from chromadb.errors import CollectionNotFoundError # Specific error for checking collection existence
 
 # --- Load Data from Config ---
 from config import full_knowledge_text
@@ -31,18 +24,15 @@ from config import full_knowledge_text
 # --- Logging Configuration ---
 log_level = logging.DEBUG
 log_format = '%(asctime)s - %(levelname)s - %(name)s - %(message)s'
-log_file = 'chatbot.log'
+log_file = 'chatbot.log' # Log file might be less useful in ephemeral environments like Streamlit Cloud
 
-logging.basicConfig(level=log_level, format=log_format)
+logging.basicConfig(level=log_level, format=log_format, stream=sys.stdout) # Log to stdout for cloud environments
 logger = logging.getLogger(__name__)
 
 
-# --- Custom University Embedding Class ---
+# --- Custom University Embedding Class (Keep as is) ---
 class UniversityEmbeddings(Embeddings):
-    """
-    Custom LangChain embedding class for the HKBU GenAI Platform API.
-    Assumes the API follows the Azure OpenAI embedding endpoint structure.
-    """
+    # ... (Your existing UniversityEmbeddings class code - no changes needed here) ...
     def __init__(
         self,
         api_key: str,
@@ -64,20 +54,14 @@ class UniversityEmbeddings(Embeddings):
     def _embed(self, texts: List[str]) -> List[List[float]]:
         """Internal method to handle embedding requests."""
         all_embeddings = []
-        # Consider adding batching logic if API supports sending multiple texts per request
         for i in range(0, len(texts), self.embed_batch_size):
              batch = texts[i:i + self.embed_batch_size]
-             # Standard Azure OpenAI payload format: {'input': list_of_strings_or_single_string}
-             payload = {'input': batch if len(batch) > 1 else batch[0]} # Adjust if API expects single string even in batch
+             payload = {'input': batch if len(batch) > 1 else batch[0]}
 
              try:
                   response = requests.post(self.endpoint_url, json=payload, headers=self.headers, timeout=30)
-                  response.raise_for_status() # Check for HTTP errors
+                  response.raise_for_status()
                   response_data = response.json()
-
-                  # Expected Azure OpenAI response structure:
-                  # {'data': [{'embedding': [0.1, ...], 'index': 0}, ...], 'model': '...', 'usage': {...}}
-                  # Sort by index to ensure order is maintained if API returns out of order
                   batch_embeddings = [item['embedding'] for item in sorted(response_data['data'], key=lambda x: x['index'])]
 
                   if len(batch_embeddings) != len(batch):
@@ -142,63 +126,111 @@ class UniversityEmbeddings(Embeddings):
 university_api_key = st.secrets.get("university_api_key")
 university_base_url = "https://genai.hkbu.edu.hk/general/rest"
 university_chat_model_name = "gpt-4-o-mini" # Model for chat
-university_embedding_model_name = "text-embedding-3-large" 
+university_embedding_model_name = "text-embedding-3-large"
 university_api_version = "2024-05-01-preview"
-EMBEDDING_BATCH_SIZE = 16 
+EMBEDDING_BATCH_SIZE = 16
 
 # --- Vector Store Configuration ---
-persist_directory = 'sc_hk_card_db'
+# persist_directory = 'sc_hk_card_db' # REMOVED: No longer persisting locally
 collection_name = "sc_hk_card_info"
-force_recreate_db = True
+force_recreate_db = True # Be careful with this in production!
 
-# --- Helper function to initialize Vector Store ---
-@st.cache_resource(show_spinner="Initializing Knowledge Base...")
-def initialize_vector_store(text_data, _embedding_function, _persist_directory, _collection_name, _force_recreate=False):
-    logger.info(f"Initializing/Loading vector store from: {_persist_directory}")
+# *** ChromaDB Server Configuration (Fetch from Secrets) ***
+chroma_host = st.secrets.get("CHROMA_HOST")
+chroma_port = st.secrets.get("CHROMA_PORT", "8000") # Default Chroma port is 8000
+
+# --- Helper function to initialize Vector Store (MODIFIED for alternative error handling) ---
+@st.cache_resource(show_spinner="Connecting to Knowledge Base...")
+def initialize_vector_store(text_data, _embedding_function, _collection_name, _chroma_host, _chroma_port, _force_recreate=False):
+    logger.info(f"Attempting to connect to ChromaDB server at {_chroma_host}:{_chroma_port}")
     vectorstore = None
-    if _force_recreate and os.path.exists(_persist_directory):
-        logger.warning(f"Force recreating DB. Removing old directory: {_persist_directory}")
+    chroma_client = None
+
+    if not _chroma_host:
+        st.error("ChromaDB host address is not configured in Streamlit secrets (key: CHROMA_HOST).")
+        logger.error("CHROMA_HOST secret not found.")
+        st.stop()
+        return None
+
+    try:
+        chroma_client = chromadb.HttpClient(
+            host=_chroma_host,
+            port=_chroma_port,
+            settings=Settings(allow_reset=True, anonymized_telemetry=False)
+        )
+        chroma_client.heartbeat()
+        logger.info("Successfully connected to ChromaDB server.")
+
+    except Exception as e:
+        logger.exception(f"Failed to connect to ChromaDB server at {_chroma_host}:{_chroma_port}: {e}")
+        st.error(f"Error connecting to the Knowledge Base server ({_chroma_host}:{_chroma_port}). Please ensure it's running and accessible.")
+        st.stop()
+        return None
+
+    collection_exists = False
+    try:
+        # *** MODIFICATION START ***
+        # Check using list_collections instead of relying on get_collection's exception
+        existing_collections = chroma_client.list_collections()
+        collection_names = [col.name for col in existing_collections]
+
+        if _collection_name in collection_names:
+            logger.info(f"Collection '{_collection_name}' found in list on ChromaDB server.")
+            collection_exists = True
+        else:
+            logger.info(f"Collection '{_collection_name}' not found in list on ChromaDB server.")
+            collection_exists = False
+        # *** MODIFICATION END ***
+
+    except Exception as e:
+        # Handle potential errors during list_collections itself
+        logger.exception(f"Error checking for collection '{_collection_name}' via list_collections: {e}")
+        st.error(f"Error accessing Knowledge Base collection list '{_collection_name}'.")
+        collection_exists = False # Assume it doesn't exist or is inaccessible if error
+
+    # --- Force recreate logic remains the same ---
+    if _force_recreate and collection_exists:
+        logger.warning(f"Force recreating DB. Deleting existing collection: {_collection_name}")
         try:
-            shutil.rmtree(_persist_directory)
-        except OSError as e:
-            logger.error(f"Error removing directory {_persist_directory}: {e}")
-            st.error(f"Error removing old database directory. Please remove it manually: {_persist_directory}")
-            st.stop()
-
-
-    if os.path.exists(_persist_directory):
-        try:
-            logger.info(f"Attempting to load existing vector store with {type(_embedding_function)}.") # Log embedding type
-            vectorstore = Chroma(
-                persist_directory=_persist_directory,
-                embedding_function=_embedding_function,
-                collection_name=_collection_name
-            )
-            count = vectorstore._collection.count() # Get count safely
-            if count == 0:
-                 logger.warning("Vector store exists but is empty. Re-initializing.")
-                 vectorstore = None
-                 if os.path.exists(_persist_directory): # Clean up empty directory
-                    try:
-                        shutil.rmtree(_persist_directory)
-                    except OSError as e:
-                        logger.error(f"Error removing empty directory {_persist_directory}: {e}")
-
-            else:
-                 logger.info(f"Successfully loaded vector store with {count} documents.")
-
+            chroma_client.delete_collection(name=_collection_name)
+            logger.info(f"Successfully deleted collection: {_collection_name}")
+            collection_exists = False
+            time.sleep(1)
         except Exception as e:
-            logger.exception(f"Error loading existing vector store: {e}. Will attempt re-initialization.") # Log full traceback
-            vectorstore = None
-            if os.path.exists(_persist_directory):
+            logger.error(f"Error deleting collection {_collection_name}: {e}")
+            st.error(f"Error deleting existing Knowledge Base collection '{_collection_name}'. Please check ChromaDB server logs.")
+            st.stop()
+            return None
+
+    # --- Loading/Creation logic remains the same, relying on the collection_exists flag ---
+    if collection_exists:
+        try:
+            logger.info(f"Attempting to load existing vector store '{_collection_name}' using Langchain Chroma client.")
+            vectorstore = Chroma(
+                client=chroma_client,
+                collection_name=_collection_name,
+                embedding_function=_embedding_function,
+            )
+            count = vectorstore._collection.count()
+            if count == 0:
+                logger.warning(f"Remote vector store '{_collection_name}' exists but is empty. Re-initializing.")
+                collection_exists = False
                 try:
-                    shutil.rmtree(_persist_directory)
-                except OSError as e:
-                     logger.error(f"Error removing potentially corrupted directory {_persist_directory}: {e}")
+                    chroma_client.delete_collection(name=_collection_name)
+                    logger.info(f"Deleted empty collection '{_collection_name}'.")
+                except Exception as e_del:
+                    logger.error(f"Failed to delete empty collection '{_collection_name}': {e_del}")
+            else:
+                logger.info(f"Successfully loaded vector store '{_collection_name}' with {count} documents from ChromaDB server.")
+        except Exception as e:
+            logger.exception(f"Error loading existing vector store '{_collection_name}' from client: {e}. Will attempt re-initialization if possible.")
+            st.warning(f"Could not load existing knowledge base '{_collection_name}'. Attempting to create a new one.")
+            vectorstore = None
+            collection_exists = False
 
-
-    if vectorstore is None:
-        logger.info(f"Creating new vector store in: {_persist_directory}")
+    if not collection_exists:
+        # ... (rest of the creation logic using Chroma.from_documents) ...
+        logger.info(f"Creating new vector store collection: {_collection_name} on ChromaDB server.")
         if not text_data:
             logger.error("Source text data is empty. Cannot initialize vector store.")
             st.error("Error: The source knowledge text is empty. Cannot build the knowledge base.")
@@ -216,31 +248,30 @@ def initialize_vector_store(text_data, _embedding_function, _persist_directory, 
             logger.info(f"Split data into {len(chunks)} chunks.")
 
             if not chunks:
-                 logger.error("No chunks were created from the source data.")
-                 st.error("Error: No text chunks could be created from the source data.")
-                 st.stop()
-                 return None
+                logger.error("No chunks were created from the source data.")
+                st.error("Error: No text chunks could be created from the source data.")
+                st.stop()
+                return None
 
-            logger.info(f"Creating Chroma store with {type(_embedding_function)}.")
+            logger.info(f"Creating Chroma collection '{_collection_name}' via Langchain with {type(_embedding_function)}.")
             vectorstore = Chroma.from_documents(
                 documents=chunks,
                 embedding=_embedding_function,
-                persist_directory=_persist_directory,
-                collection_name=_collection_name
+                collection_name=_collection_name,
+                client=chroma_client,
             )
-            # Add a small delay to ensure persistence before counting
-            time.sleep(1)
+            time.sleep(2)
             count = vectorstore._collection.count()
-            logger.info(f"Created and persisted new vector store with {count} documents.")
+            logger.info(f"Created and populated collection '{_collection_name}' with {count} documents on ChromaDB server.")
             if count == 0:
-                 logger.error("Vector store created but appears empty. Check embedding process and API responses.")
-                 st.error("Error: Knowledge base was created but seems empty. Check logs for embedding errors.")
-                 st.stop()
-                 return None
+                logger.error("Vector store collection created but appears empty. Check embedding process and API responses.")
+                st.error("Error: Knowledge base was created but seems empty. Check logs for embedding errors.")
+                st.stop()
+                return None
 
         except Exception as e:
-            logger.exception(f"Fatal error during vector store creation: {e}")
-            st.error(f"Fatal error creating knowledge base: {e}")
+            logger.exception(f"Fatal error during vector store creation on ChromaDB server: {e}")
+            st.error(f"Fatal error creating knowledge base on ChromaDB server: {e}")
             st.stop()
             return None
 
@@ -249,7 +280,7 @@ def initialize_vector_store(text_data, _embedding_function, _persist_directory, 
 # --- Streamlit App UI ---
 st.set_page_config(page_title="Credit Card FAQ Chatbot", page_icon="💳")
 st.title("💳 Standard Chartered HK - Credit Card FAQ")
-st.markdown("Using HKBU GenAI Platform API (Chat & Embeddings)") # Indicate API source
+st.markdown("Using HKBU GenAI Platform API (Chat & Embeddings) | Knowledge Base via ChromaDB Server") # Updated description
 
 def clear_chat_history():
     logger.info("Clearing chat history.")
@@ -262,8 +293,13 @@ if not university_api_key:
     st.info("Please add your University API key to Streamlit secrets (key: university_api_key) to continue.", icon="🗝️")
     logger.warning("University API key not found in secrets.")
     st.stop()
+elif not chroma_host:
+    # Error message already handled in initialize_vector_store if secret is missing
+    # st.info("Please add your ChromaDB server host to Streamlit secrets (key: CHROMA_HOST).", icon="☁️")
+    logger.warning("ChromaDB host not found in secrets.")
+    st.stop() # Stop here if Chroma host is missing
 else:
-    # *** Initialize Custom University Embeddings WITH BATCH SIZE ***
+    # *** Initialize Custom University Embeddings ***
     try:
         embeddings = UniversityEmbeddings(
             api_key=university_api_key,
@@ -272,26 +308,31 @@ else:
             api_version=university_api_version,
             embed_batch_size=EMBEDDING_BATCH_SIZE
         )
-        # Log the batch size being used
         logger.info(f"University Embeddings client initialized successfully with batch size {embeddings.embed_batch_size}.")
     except Exception as e:
         logger.exception("Failed to initialize University Embeddings client.")
         st.error(f"Failed to initialize University Embeddings service: {e}")
         st.stop()
 
-    # --- Load or Initialize Vector Store ---
+    # --- Connect to or Initialize Vector Store on ChromaDB Server ---
     vectorstore = initialize_vector_store(
         full_knowledge_text,
-        embeddings,
-        persist_directory,
+        embeddings, # Pass the initialized embedding function
         collection_name,
-        force_recreate_db
+        chroma_host,
+        chroma_port,
+        force_recreate_db # Pass the flag
     )
 
     if vectorstore is None:
+        # Errors should be handled within initialize_vector_store, but double-check
         logger.error("Vector store initialization failed. Stopping execution.")
-        st.error("Failed to initialize the knowledge base. Please check the logs for embedding API errors.")
+        if not st.secrets.get("CHROMA_HOST"):
+             st.error("Knowledge base connection failed: ChromaDB host not configured in secrets.")
+        else:
+             st.error("Failed to initialize/connect to the knowledge base. Please check the logs and ensure the ChromaDB server is running and accessible.")
         st.stop()
+
 
     # --- Initialize chat history ---
     if "messages" not in st.session_state:
@@ -312,35 +353,42 @@ else:
 
         # Add a thinking indicator
         with st.chat_message("assistant"):
-            thinking_message = st.empty() # Placeholder for spinner/message
-            thinking_message.markdown("Thinking... *(Please wait, generating full response)*")
+            thinking_message = st.empty()
+            thinking_message.markdown("Thinking... *(Accessing knowledge base & generating response)*")
             with st.spinner("Processing your request..."):
                 # --- RAG Step: Retrieve ---
                 context = "Error during context retrieval."
                 retrieved_docs_content = []
                 try:
-                    logger.info(f"Retrieving relevant documents for query: '{prompt}'")
-                    retriever = vectorstore.as_retriever(
-                        search_type="similarity",
-                        search_kwargs={"k": 10}
-                    )
-                    retrieved_docs = retriever.invoke(prompt) # Uses embed_query
-                    retrieved_docs_content = [doc.page_content for doc in retrieved_docs]
+                    logger.info(f"Retrieving relevant documents for query: '{prompt}' from ChromaDB server.")
+                    # Ensure the vectorstore object is valid before creating retriever
+                    if vectorstore:
+                        retriever = vectorstore.as_retriever(
+                            search_type="similarity",
+                            search_kwargs={"k": 10} # Retrieve top 10 docs
+                        )
+                        # The retriever uses the embedding function associated with the vectorstore
+                        retrieved_docs = retriever.invoke(prompt)
+                        retrieved_docs_content = [doc.page_content for doc in retrieved_docs]
 
-                    if not retrieved_docs_content:
-                         logger.warning("No relevant documents found in the knowledge base for the query.")
-                         context = "No specific information found in the knowledge base for this query."
+                        if not retrieved_docs_content:
+                            logger.warning("No relevant documents found in the remote knowledge base for the query.")
+                            context = "No specific information found in the knowledge base for this query."
+                        else:
+                            context = "\n\n---\n\n".join(retrieved_docs_content)
+                            logger.info(f"Retrieved {len(retrieved_docs)} documents from ChromaDB server.")
+                            logger.debug(f"Retrieved context:\n{context[:500]}...")
                     else:
-                        context = "\n\n---\n\n".join(retrieved_docs_content)
-                        logger.info(f"Retrieved {len(retrieved_docs)} documents.")
-                        logger.debug(f"Retrieved context:\n{context[:500]}...")
+                         logger.error("Vectorstore object is invalid/None. Cannot retrieve documents.")
+                         context = "Error: Failed to access the knowledge base (invalid vectorstore)."
+
 
                 except Exception as e:
-                    logger.exception("Error retrieving documents from vector store.")
-                    st.error(f"Error retrieving information from knowledge base: {e}")
-                    context = "Error: Failed to access the knowledge base."
+                    logger.exception("Error retrieving documents from vector store client.")
+                    st.error(f"Error retrieving information from knowledge base server: {e}")
+                    context = "Error: Failed to access the knowledge base server."
 
-                # --- RAG Step: Augment Prompt ---
+                # --- RAG Step: Augment Prompt (No changes needed here) ---
                 system_message_content = """You are an AI assistant for Standard Chartered HK credit cards.
                 - Answer the user's question based *ONLY* on the provided context below.
                 - Be concise and directly address the question.
@@ -355,7 +403,7 @@ else:
                 ]
                 logger.debug(f"Messages prepared for University Chat API: {messages_for_api}")
 
-                # --- RAG Step: Generate ---
+                # --- RAG Step: Generate (No changes needed here) ---
                 response_content = "Sorry, I encountered an error processing your request."
                 try:
                     url = f"{university_base_url}/deployments/{university_chat_model_name}/chat/completions?api-version={university_api_version}"
@@ -366,7 +414,7 @@ else:
                     payload = { 'messages': messages_for_api }
 
                     logger.info(f"Sending request to University Chat API: {url}")
-                    api_response = requests.post(url, json=payload, headers=headers, timeout=90) # Increased timeout for chat potentially
+                    api_response = requests.post(url, json=payload, headers=headers, timeout=90)
                     api_response.raise_for_status()
 
                     if api_response.status_code == 200:

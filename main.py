@@ -4,31 +4,22 @@ import streamlit as st
 import requests
 import json
 import os # Keep os for path checking
-# import shutil # No longer needed
 import logging
 import time
 from typing import List
 
-# --- RAG Libraries ---
-# REMOVE Chroma imports related to client/persistence if any remain
-# from langchain_community.vectorstores import Chroma
-# import chromadb
-# from chromadb.config import Settings
-# from chromadb.errors import CollectionNotFoundError
-
 from langchain_community.vectorstores import FAISS # ADD FAISS import
 from langchain_core.embeddings import Embeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter # Keep if needed elsewhere, maybe not?
-from langchain.docstore.document import Document # Keep if needed elsewhere, maybe not?
+from langchain.text_splitter import RecursiveCharacterTextSplitter 
+from langchain.docstore.document import Document 
 
 
 # --- Load Data from Config ---
-from config import full_knowledge_text # Still needed for reference or maybe not? Decide if needed beyond index.
+from config import full_knowledge_text 
 
 # --- Logging Configuration ---
 log_level = logging.DEBUG
 log_format = '%(asctime)s - %(levelname)s - %(name)s - %(message)s'
-# log_file = 'chatbot.log' # Less useful in cloud
 
 logging.basicConfig(level=log_level, format=log_format, stream=sys.stdout)
 logger = logging.getLogger(__name__)
@@ -36,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 # --- Custom University Embedding Class (Keep as is) ---
 class UniversityEmbeddings(Embeddings):
-    # ... (Your existing UniversityEmbeddings class code - no changes needed here) ...
     def __init__(
         self,
         api_key: str,
@@ -45,7 +35,6 @@ class UniversityEmbeddings(Embeddings):
         api_version: str,
         embed_batch_size: int = 1
     ):
-        # ... (rest of init) ...
         self.api_key = api_key
         # Construct the specific endpoint URL for embeddings
         self.endpoint_url = f"{base_url}/deployments/{model_name}/embeddings?api-version={api_version}"
@@ -57,7 +46,6 @@ class UniversityEmbeddings(Embeddings):
         logger.info(f"Initialized UniversityEmbeddings with endpoint: {self.endpoint_url}")
 
     def _embed(self, texts: List[str]) -> List[List[float]]:
-        # ... (Your _embed method) ...
         all_embeddings = []
         for i in range(0, len(texts), self.embed_batch_size):
              batch = texts[i:i + self.embed_batch_size]
@@ -100,7 +88,6 @@ class UniversityEmbeddings(Embeddings):
 
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        # ... (Your embed_documents method) ...
         if not texts:
              logger.warning("embed_documents called with empty list.")
              return []
@@ -113,7 +100,6 @@ class UniversityEmbeddings(Embeddings):
 
 
     def embed_query(self, text: str) -> List[float]:
-        # ... (Your embed_query method) ...
         if not text:
              logger.warning("embed_query called with empty string.")
              return [] # Return empty list or handle as error?
@@ -125,24 +111,16 @@ class UniversityEmbeddings(Embeddings):
         return query_embedding
 
 # --- Configuration ---
-# *** University API Configuration (Only API Key needed from secrets now) ***
 university_api_key = st.secrets.get("university_api_key")
 university_base_url = "https://genai.hkbu.edu.hk/general/rest"
 university_chat_model_name = "gpt-4-o-mini"
-university_embedding_model_name = "text-embedding-3-large" # Still needed for embeddings object
+university_embedding_model_name = "text-embedding-3-large" 
 university_api_version = "2024-05-01-preview"
 EMBEDDING_BATCH_SIZE = 16
 
-# --- Vector Store Configuration ---
-# REMOVED Chroma specific config
-# collection_name = "sc_hk_card_info"
-# REMOVED ChromaDB Server Config
-# chroma_host = st.secrets.get("CHROMA_HOST")
-# chroma_port = st.secrets.get("CHROMA_PORT", "8000")
-
 FAISS_INDEX_PATH = "faiss_index" # Path where index files are stored in the repo
 
-# --- Helper function to initialize Vector Store (MODIFIED FOR FAISS) ---
+# --- Helper function to initialize Vector Store ---
 @st.cache_resource(show_spinner="Loading Knowledge Base...")
 def initialize_vector_store(_embedding_function):
     logger.info(f"Attempting to load FAISS index from path: {FAISS_INDEX_PATH}")
@@ -162,8 +140,6 @@ def initialize_vector_store(_embedding_function):
         vectorstore = FAISS.load_local(
             folder_path=FAISS_INDEX_PATH,
             embeddings=_embedding_function,
-            # Deserialization needs to be allowed for loading the .pkl file
-            # This is safe if you trust the source of the index files (which you do, as you generated them)
             allow_dangerous_deserialization=True
         )
         logger.info(f"Successfully loaded FAISS index from {FAISS_INDEX_PATH}")
@@ -194,7 +170,6 @@ if not university_api_key:
 else:
     # *** Initialize Custom University Embeddings ***
     try:
-        # Embeddings object is needed for loading the FAISS index
         embeddings = UniversityEmbeddings(
             api_key=university_api_key,
             base_url=university_base_url,
@@ -213,7 +188,6 @@ else:
 
     if vectorstore is None:
         logger.error("FAISS vector store loading failed. Stopping execution.")
-        # Error message should have been displayed in initialize_vector_store
         st.stop()
 
     # --- Initialize chat history ---
@@ -237,18 +211,16 @@ else:
             thinking_message = st.empty()
             thinking_message.markdown("Thinking... *(Accessing knowledge base & generating response)*")
             with st.spinner("Processing your request..."):
-                # --- RAG Step: Retrieve (Now uses FAISS) ---
+                # --- RAG Step: Retrieve ---
                 context = "Error during context retrieval."
                 retrieved_docs_content = []
                 try:
                     logger.info(f"Retrieving relevant documents for query: '{prompt}' from FAISS index.")
                     if vectorstore:
-                        # The retriever works the same way with FAISS vectorstore object
                         retriever = vectorstore.as_retriever(
                             search_type="similarity",
                             search_kwargs={"k": 10}
                         )
-                        # Retriever uses the embed_query method from the embeddings object passed during loading
                         retrieved_docs = retriever.invoke(prompt)
                         retrieved_docs_content = [doc.page_content for doc in retrieved_docs]
 
@@ -268,8 +240,7 @@ else:
                     st.error(f"Error retrieving information from knowledge base files: {e}")
                     context = "Error: Failed to access the knowledge base files."
 
-                # --- RAG Step: Augment Prompt (No changes needed here) ---
-                # ... (system_message_content and messages_for_api remain the same) ...
+                # --- RAG Step: Augment Prompt ---
                 system_message_content = """You are an AI assistant for Standard Chartered HK credit cards.
                 - Answer the user's question based *ONLY* on the provided context below.
                 - Be concise and directly address the question.
@@ -283,8 +254,7 @@ else:
                     {"role": "user", "content": f"Based on the following information:\n\nContext:\n---\n{context}\n---\n\nQuestion: {prompt}"}
                 ]
 
-                # --- RAG Step: Generate (No changes needed here) ---
-                # ... (API call logic to University Chat API remains the same) ...
+                # --- RAG Step: Generate ---
                 response_content = "Sorry, I encountered an error processing your request."
                 try:
                     url = f"{university_base_url}/deployments/{university_chat_model_name}/chat/completions?api-version={university_api_version}"
